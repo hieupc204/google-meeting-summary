@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Meet AI Assistant",
+  "version": "0.1.0",
+  "description": "Capture Google Meet captions and summarize with your own AI provider — privacy-first, 100% local.",
+  "action": {
+    "default_popup": "src/popup/index.html",
+    "default_title": "Meet AI Assistant"
+  },
+  "options_page": "src/history/index.html",
+  "background": {
+    "service_worker": "src/background/service-worker.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://meet.google.com/*"],
+      "js": ["src/content/index.ts"],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": ["storage", "identity", "tabs", "activeTab", "offscreen", "alarms", "scripting"],
+  "host_permissions": [
+    "https://meet.google.com/*",
+    "https://www.googleapis.com/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/history/index.html", "icons/*"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}

@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meet Assistant — Settings</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --primary: #4F46E5;
+      --primary-light: #EEF2FF;
+      --primary-dark: #3730A3;
+      --cyan: #06B6D4;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --danger: #EF4444;
+      --bg: #F1F5F9;
+      --surface: #FFFFFF;
+      --border: #E2E8F0;
+      --text: #1E293B;
+      --text-secondary: #64748B;
+      --text-muted: #94A3B8;
+      --radius: 12px;
+    }
+
+    body {
+      background: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── LAYOUT ── */
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: 240px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 20px 0;
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar-logo {
+      padding: 0 20px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 12px;
+    }
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 18px;
+    }
+    .logo-text { font-weight: 700; font-size: 15px; color: var(--primary); }
+    .logo-sub { font-size: 11px; color: var(--text-muted); }
+
+    .nav-section {
+      padding: 4px 12px;
+      margin-bottom: 4px;
+    }
+    .nav-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+      padding: 0 8px;
+      margin-bottom: 4px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13.5px;
+      color: var(--text-secondary);
+      transition: all 0.15s;
+    }
+    .nav-item:hover { background: var(--bg); color: var(--text); }
+    .nav-item.active {
+      background: var(--primary-light);
+      color: var(--primary);
+      font-weight: 600;
+    }
+    .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* ── MAIN ── */
+    .main {
+      margin-left: 240px;
+      flex: 1;
+      padding: 32px 40px;
+      max-width: 860px;
+    }
+
+    .page-header {
+      margin-bottom: 28px;
+    }
+    .page-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .page-subtitle {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-body { padding: 20px; }
+
+    /* ── FORM ELEMENTS ── */
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .form-row.single { grid-template-columns: 1fr; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .form-input, .form-select {
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--surface);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-input:focus, .form-select:focus { border-color: var(--primary); }
+    .form-input.password { font-family: monospace; letter-spacing: 2px; }
+    .form-hint { font-size: 11px; color: var(--text-muted); }
+
+    /* ── PROVIDER PRESETS ── */
+    .provider-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .provider-card {
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+    }
+    .provider-card:hover { border-color: var(--primary); background: var(--primary-light); }
+    .provider-card.selected { border-color: var(--primary); background: var(--primary-light); }
+    .provider-icon { font-size: 20px; margin-bottom: 4px; }
+    .provider-name { font-size: 12px; font-weight: 600; color: var(--text); }
+    .provider-desc { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+
+    /* ── TOGGLE ── */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--bg);
+    }
+    .toggle-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .toggle-info { flex: 1; }
+    .toggle-title { font-size: 13px; font-weight: 500; }
+    .toggle-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .toggle {
+      position: relative;
+      width: 40px; height: 22px;
+      cursor: pointer;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: var(--border);
+      border-radius: 22px;
+      transition: background 0.2s;
+    }
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 16px; height: 16px;
+      left: 3px; top: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .toggle input:checked + .toggle-slider { background: var(--primary); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(18px); }
+
+    /* ── RADIO GROUP ── */
+    .radio-group { display: flex; flex-direction: column; gap: 8px; }
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .radio-option:hover { border-color: var(--primary); background: var(--primary-light); }
+    .radio-option.selected { border-color: var(--primary); background: var(--primary-light); }
+    .radio-dot {
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color 0.15s;
+    }
+    .radio-option.selected .radio-dot {
+      border-color: var(--primary);
+      background: var(--primary);
+    }
+    .radio-option.selected .radio-dot::after {
+      content: '';
+      width: 6px; height: 6px;
+      background: white;
+      border-radius: 50%;
+    }
+    .radio-text { flex: 1; }
+    .radio-title { font-size: 13px; font-weight: 500; }
+    .radio-desc { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+    .radio-badge {
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 20px;
+      background: var(--primary-light);
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    /* ── CHECKBOX ── */
+    .checkbox-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .checkbox-item.checked {
+      border-color: var(--primary);
+      background: var(--primary-light);
+    }
+    .checkbox-box {
+      width: 16px; height: 16px;
+      border-radius: 4px;
+      border: 2px solid var(--border);
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px;
+    }
+    .checkbox-item.checked .checkbox-box {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: white;
+    }
+    .checkbox-label { font-size: 12px; font-weight: 500; }
+
+    /* ── GOOGLE CONNECT ── */
+    .google-connect {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      background: var(--bg);
+      border-radius: 10px;
+      margin-bottom: 16px;
+    }
+    .google-account {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .google-avatar {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, #EA4335, #FBBC05);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-weight: 700; font-size: 14px;
+    }
+    .google-info { font-size: 12px; }
+    .google-name { font-weight: 600; font-size: 13px; }
+    .google-email { color: var(--text-muted); }
+    .btn-disconnect {
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--surface);
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--text-secondary);
+    }
+    .btn-connect {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border: 1.5px solid var(--border);
+      border-radius: 9px;
+      background: var(--surface);
+      font-size: 13px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .btn-connect:hover { border-color: var(--primary); background: var(--primary-light); }
+
+    /* ── TEXTAREA ── */
+    .form-textarea {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--surface);
+      resize: vertical;
+      min-height: 80px;
+      width: 100%;
+      outline: none;
+      font-family: inherit;
+      line-height: 1.5;
+    }
+    .form-textarea:focus { border-color: var(--primary); }
+
+    /* ── TEST API BUTTON ── */
+    .test-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .btn-test {
+      padding: 8px 16px;
+      border: 1.5px solid var(--primary);
+      color: var(--primary);
+      background: transparent;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-test:hover { background: var(--primary-light); }
+    .test-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--success);
+    }
+
+    /* ── SAVE BAR ── */
+    .save-bar {
+      position: fixed;
+      bottom: 0; left: 240px; right: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 14px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .save-hint { font-size: 12px; color: var(--text-muted); }
+    .btn-save {
+      padding: 9px 24px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-save:hover { background: var(--primary-dark); }
+
+    /* ── DANGER ZONE ── */
+    .danger-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--bg);
+    }
+    .danger-row:last-child { border-bottom: none; }
+    .btn-danger {
+      padding: 7px 14px;
+      border: 1px solid #FECACA;
+      color: var(--danger);
+      background: #FEF2F2;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .section-spacer { height: 60px; }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">✦</div>
+      <div>
+        <div class="logo-text">Meet Assistant</div>
+        <div class="logo-sub">Settings</div>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Cấu hình</div>
+      <div class="nav-item active" onclick="showSection('ai')">
+        <span class="nav-icon">🤖</span> AI Provider
+      </div>
+      <div class="nav-item" onclick="showSection('caption')">
+        <span class="nav-icon">💬</span> Caption Mode
+      </div>
+      <div class="nav-item" onclick="showSection('summary')">
+        <span class="nav-icon">📝</span> Summary
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Tích hợp</div>
+      <div class="nav-item" onclick="showSection('calendar')">
+        <span class="nav-icon">📅</span> Google Calendar
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Dữ liệu</div>
+      <div class="nav-item" onclick="showSection('storage')">
+        <span class="nav-icon">💾</span> Lưu trữ & Bảo mật
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <span>Meet Assistant v1.0</span>
+      <span>Phản hồi</span>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main">
+
+    <!-- AI PROVIDER -->
+    <div id="section-ai">
+      <div class="page-header">
+        <div class="page-title">🤖 AI Provider</div>
+        <div class="page-subtitle">Cấu hình API để tóm tắt cuộc họp. Key của bạn chỉ lưu local, không gửi đi đâu.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">⚡ Chọn nhanh provider</div>
+        </div>
+        <div class="card-body">
+          <div class="provider-grid">
+            <div class="provider-card selected" onclick="selectProvider(this, 'https://api.openai.com/v1', 'gpt-4o')">
+              <div class="provider-icon">🟢</div>
+              <div class="provider-name">OpenAI</div>
+              <div class="provider-desc">GPT-4o, GPT-4o mini</div>
+            </div>
+            <div class="provider-card" onclick="selectProvider(this, 'https://api.anthropic.com/v1', 'claude-sonnet-4-6')">
+              <div class="provider-icon">🟣</div>
+              <div class="provider-name">Anthropic</div>
+              <div class="provider-desc">Claude Sonnet / Haiku</div>
+            </div>
+            <div class="provider-card" onclick="selectProvider(this, 'https://api.groq.com/openai/v1', 'llama-3.3-70b-versatile')">
+              <div class="provider-icon">⚡</div>
+              <div class="provider-name">Groq</div>
+              <div class="provider-desc">Nhanh, rẻ</div>
+            </div>
+            <div class="provider-card" onclick="selectProvider(this, 'http://localhost:11434/v1', 'llama3')">
+              <div class="provider-icon">🏠</div>
+              <div class="provider-name">Ollama</div>
+              <div class="provider-desc">Chạy local, miễn phí</div>
+            </div>
+            <div class="provider-card" onclick="selectProvider(this, 'https://openrouter.ai/api/v1', '')">
+              <div class="provider-icon">🌐</div>
+              <div class="provider-name">OpenRouter</div>
+              <div class="provider-desc">100+ models</div>
+            </div>
+            <div class="provider-card" onclick="selectProvider(this, '', '')">
+              <div class="provider-icon">⚙️</div>
+              <div class="provider-name">Custom</div>
+              <div class="provider-desc">Tự nhập endpoint</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🔧 Cấu hình chi tiết</div>
+        </div>
+        <div class="card-body">
+          <div class="form-row single">
+            <div class="form-group">
+              <label class="form-label">API Endpoint URL</label>
+              <input class="form-input" id="apiEndpoint" type="url" value="https://api.openai.com/v1" placeholder="https://api.openai.com/v1" />
+              <span class="form-hint">Endpoint tương thích OpenAI hoặc Anthropic</span>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">API Key</label>
+              <input class="form-input password" id="apiKey" type="password" value="sk-••••••••••••••••••••••••" placeholder="sk-..." />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Model</label>
+              <input class="form-input" id="modelName" type="text" value="gpt-4o" placeholder="gpt-4o" />
+            </div>
+          </div>
+          <div class="test-row">
+            <button class="btn-test" onclick="testAPI()">🔌 Test kết nối</button>
+            <span class="test-status" id="testStatus" style="display:none">✅ Kết nối thành công</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CAPTION MODE -->
+    <div id="section-caption" style="display:none">
+      <div class="page-header">
+        <div class="page-title">💬 Caption Mode</div>
+        <div class="page-subtitle">Chọn cách extension xử lý Closed Caption khi bạn vào Google Meet.</div>
+      </div>
+      <div class="card">
+        <div class="card-body">
+          <div class="radio-group">
+            <div class="radio-option" onclick="selectRadio(this)">
+              <div class="radio-dot"></div>
+              <div class="radio-text">
+                <div class="radio-title">Manual — Tự bật CC</div>
+                <div class="radio-desc">Extension chỉ đọc transcript khi bạn đã bật CC thủ công</div>
+              </div>
+              <span class="radio-badge">Privacy cao</span>
+            </div>
+            <div class="radio-option selected" onclick="selectRadio(this)">
+              <div class="radio-dot"></div>
+              <div class="radio-text">
+                <div class="radio-title">Ask — Hỏi trước khi bật CC</div>
+                <div class="radio-desc">Hiện banner hỏi ý kiến trước khi tự động bật CC</div>
+              </div>
+              <span class="radio-badge">Mặc định</span>
+            </div>
+            <div class="radio-option" onclick="selectRadio(this)">
+              <div class="radio-dot"></div>
+              <div class="radio-text">
+                <div class="radio-title">Auto — Tự động bật CC</div>
+                <div class="radio-desc">Extension tự bật CC ngay khi phát hiện cuộc họp</div>
+              </div>
+              <span class="radio-badge">Power user</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SUMMARY SETTINGS -->
+    <div id="section-summary" style="display:none">
+      <div class="page-header">
+        <div class="page-title">📝 Summary Preferences</div>
+        <div class="page-subtitle">Tùy chỉnh nội dung AI tóm tắt sau mỗi cuộc họp.</div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">📋 Nội dung tóm tắt</div></div>
+        <div class="card-body">
+          <div class="checkbox-grid">
+            <div class="checkbox-item checked" onclick="toggleCheck(this)">
+              <div class="checkbox-box">✓</div>
+              <span class="checkbox-label">Tóm tắt chính</span>
+            </div>
+            <div class="checkbox-item checked" onclick="toggleCheck(this)">
+              <div class="checkbox-box">✓</div>
+              <span class="checkbox-label">Action Items</span>
+            </div>
+            <div class="checkbox-item checked" onclick="toggleCheck(this)">
+              <div class="checkbox-box">✓</div>
+              <span class="checkbox-label">Quyết định</span>
+            </div>
+            <div class="checkbox-item" onclick="toggleCheck(this)">
+              <div class="checkbox-box"></div>
+              <span class="checkbox-label">Pending Issues</span>
+            </div>
+            <div class="checkbox-item" onclick="toggleCheck(this)">
+              <div class="checkbox-box"></div>
+              <span class="checkbox-label">Key Quotes</span>
+            </div>
+            <div class="checkbox-item" onclick="toggleCheck(this)">
+              <div class="checkbox-box"></div>
+              <span class="checkbox-label">Next Steps</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">🌐 Ngôn ngữ output</div></div>
+        <div class="card-body">
+          <div class="form-row single">
+            <div class="form-group">
+              <select class="form-select">
+                <option value="vi" selected>🇻🇳 Tiếng Việt</option>
+                <option value="en">🇺🇸 English</option>
+                <option value="auto">🌐 Auto detect</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">🛠️ Custom System Prompt</div></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label">System Prompt</label>
+            <textarea class="form-textarea" rows="4">Bạn là trợ lý tóm tắt cuộc họp chuyên nghiệp. Hãy tóm tắt ngắn gọn, rõ ràng, tập trung vào nội dung quan trọng và action items.</textarea>
+            <span class="form-hint">Để trống để dùng prompt mặc định</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- GOOGLE CALENDAR -->
+    <div id="section-calendar" style="display:none">
+      <div class="page-header">
+        <div class="page-title">📅 Google Calendar</div>
+        <div class="page-subtitle">Tự động đẩy meeting summary vào Google Calendar event tương ứng.</div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">🔗 Tài khoản Google</div></div>
+        <div class="card-body">
+          <div class="google-connect">
+            <div class="google-account">
+              <div class="google-avatar">L</div>
+              <div class="google-info">
+                <div class="google-name">Long Nguyễn</div>
+                <div class="google-email">longvn7@fpt.com</div>
+              </div>
+            </div>
+            <button class="btn-disconnect">Ngắt kết nối</button>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-title">Tự động đẩy summary lên Calendar</div>
+              <div class="toggle-desc">Append summary vào description của Calendar event sau meeting</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" checked />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-title">Chỉ push khi có action items</div>
+              <div class="toggle-desc">Bỏ qua meeting không có action item nào</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">📋 Calendar target</div></div>
+        <div class="card-body">
+          <div class="form-row single">
+            <div class="form-group">
+              <label class="form-label">Đẩy summary vào calendar</label>
+              <select class="form-select">
+                <option selected>📅 Primary Calendar (longvn7@fpt.com)</option>
+                <option>📋 Work Calendar</option>
+                <option>🏠 Personal</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STORAGE & PRIVACY -->
+    <div id="section-storage" style="display:none">
+      <div class="page-header">
+        <div class="page-title">💾 Lưu trữ & Bảo mật</div>
+        <div class="page-subtitle">Toàn bộ data lưu local trên máy bạn. Không có server nào nhận dữ liệu.</div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">🗓️ Data Retention</div></div>
+        <div class="card-body">
+          <p style="font-size:12px;color:var(--text-secondary);margin-bottom:14px">
+            Chỉ xóa <strong>transcript raw</strong>. Summary và action items được giữ lại vĩnh viễn trừ khi bạn xóa thủ công.
+          </p>
+          <div class="radio-group">
+            <div class="radio-option" onclick="selectRadio(this)">
+              <div class="radio-dot"></div>
+              <div class="radio-text"><div class="radio-title">7 ngày</div></div>
+            </div>
+            <div class="radio-option selected" onclick="selectRadio(this)">
+              <div class="radio-dot"></div>
+              <div class="radio-text">
+                <div class="radio-title">30 ngày</div>
+              </div>
+              <span class="radio-badge">Mặc định</span>
+            </div>
+            <div class="radio-option" onclick="selectRadio(this)">
+              <div class="radio-dot"></div>
+              <div class="radio-text"><div class="radio-title">90 ngày</div></div>
+            </div>
+            <div class="radio-option" onclick="selectRadio(this)">
+              <div class="radio-dot"></div>
+              <div class="radio-text">
+                <div class="radio-title">Không tự xóa</div>
+                <div class="radio-desc">Phù hợp nếu bạn muốn lưu transcript lâu dài</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title" style="color:var(--danger)">⚠️ Danger Zone</div></div>
+        <div class="card-body">
+          <div class="danger-row">
+            <div>
+              <div style="font-size:13px;font-weight:500">Xóa toàn bộ transcript</div>
+              <div style="font-size:11px;color:var(--text-muted)">Giữ lại summary và action items</div>
+            </div>
+            <button class="btn-danger">Xóa transcripts</button>
+          </div>
+          <div class="danger-row">
+            <div>
+              <div style="font-size:13px;font-weight:500">Xóa toàn bộ dữ liệu</div>
+              <div style="font-size:11px;color:var(--text-muted)">Xóa hết transcript, summary, lịch sử</div>
+            </div>
+            <button class="btn-danger">Xóa tất cả</button>
+          </div>
+          <div class="danger-row">
+            <div>
+              <div style="font-size:13px;font-weight:500">Reset cài đặt về mặc định</div>
+              <div style="font-size:11px;color:var(--text-muted)">Xóa API key và toàn bộ preferences</div>
+            </div>
+            <button class="btn-danger">Reset settings</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-spacer"></div>
+  </main>
+</div>
+
+<!-- SAVE BAR -->
+<div class="save-bar">
+  <span class="save-hint">Thay đổi chưa được lưu</span>
+  <button class="btn-save" onclick="saveSettings()">💾 Lưu cài đặt</button>
+</div>
+
+<script>
+  function showSection(id) {
+    document.querySelectorAll('[id^="section-"]').forEach(el => el.style.display = 'none');
+    document.getElementById('section-' + id).style.display = 'block';
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+  }
+
+  function selectProvider(el, endpoint, model) {
+    document.querySelectorAll('.provider-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    if (endpoint) document.getElementById('apiEndpoint').value = endpoint;
+    if (model) document.getElementById('modelName').value = model;
+  }
+
+  function selectRadio(el) {
+    el.closest('.radio-group').querySelectorAll('.radio-option').forEach(r => r.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+
+  function toggleCheck(el) {
+    el.classList.toggle('checked');
+    const box = el.querySelector('.checkbox-box');
+    box.textContent = el.classList.contains('checked') ? '✓' : '';
+  }
+
+  function testAPI() {
+    const status = document.getElementById('testStatus');
+    status.style.display = 'none';
+    status.textContent = '⏳ Đang kiểm tra...';
+    status.style.color = 'var(--text-muted)';
+    status.style.display = 'flex';
+    setTimeout(() => {
+      status.textContent = '✅ Kết nối thành công';
+      status.style.color = 'var(--success)';
+    }, 1200);
+  }
+
+  function saveSettings() {
+    document.querySelector('.save-hint').textContent = '✅ Đã lưu';
+    setTimeout(() => { document.querySelector('.save-hint').textContent = 'Thay đổi chưa được lưu'; }, 2000);
+  }
+</script>
+</body>
+</html>

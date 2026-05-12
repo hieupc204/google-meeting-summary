@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meet Assistant — History</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --primary: #4F46E5;
+      --primary-light: #EEF2FF;
+      --primary-dark: #3730A3;
+      --cyan: #06B6D4;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --danger: #EF4444;
+      --purple: #8B5CF6;
+      --bg: #F1F5F9;
+      --surface: #FFFFFF;
+      --border: #E2E8F0;
+      --text: #1E293B;
+      --text-secondary: #64748B;
+      --text-muted: #94A3B8;
+      --radius: 12px;
+    }
+
+    body {
+      background: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .layout { display: flex; min-height: 100vh; }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: 240px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 20px 0;
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      display: flex; flex-direction: column;
+    }
+    .sidebar-logo {
+      padding: 0 20px 20px;
+      display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 12px;
+    }
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 18px;
+    }
+    .logo-text { font-weight: 700; font-size: 15px; color: var(--primary); }
+    .logo-sub { font-size: 11px; color: var(--text-muted); }
+    .nav-section { padding: 4px 12px; margin-bottom: 4px; }
+    .nav-label {
+      font-size: 10px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.6px;
+      color: var(--text-muted); padding: 0 8px; margin-bottom: 4px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px; border-radius: 8px;
+      cursor: pointer; font-size: 13.5px; color: var(--text-secondary);
+      transition: all 0.15s;
+    }
+    .nav-item:hover { background: var(--bg); color: var(--text); }
+    .nav-item.active { background: var(--primary-light); color: var(--primary); font-weight: 600; }
+    .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+    .sidebar-footer {
+      margin-top: auto; padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      font-size: 11px; color: var(--text-muted);
+      display: flex; justify-content: space-between;
+    }
+
+    /* ── MAIN ── */
+    .main { margin-left: 240px; flex: 1; padding: 32px 40px; }
+
+    .page-header {
+      display: flex; align-items: flex-start;
+      justify-content: space-between; margin-bottom: 24px;
+    }
+    .page-title { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+    .page-subtitle { font-size: 13px; color: var(--text-secondary); }
+
+    /* ── STATS ── */
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 12px; margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px;
+    }
+    .stat-icon { font-size: 20px; margin-bottom: 8px; }
+    .stat-value { font-size: 24px; font-weight: 700; color: var(--primary); }
+    .stat-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    /* ── TOOLBAR ── */
+    .toolbar {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
+    }
+    .search-box {
+      flex: 1; position: relative;
+    }
+    .search-input {
+      width: 100%; padding: 9px 12px 9px 36px;
+      border: 1px solid var(--border); border-radius: 9px;
+      font-size: 13px; background: var(--surface);
+      outline: none; transition: border-color 0.15s;
+    }
+    .search-input:focus { border-color: var(--primary); }
+    .search-icon {
+      position: absolute; left: 12px; top: 50%;
+      transform: translateY(-50%); color: var(--text-muted); font-size: 14px;
+    }
+    .filter-btn {
+      padding: 8px 14px; border: 1px solid var(--border);
+      border-radius: 8px; background: var(--surface);
+      font-size: 12px; cursor: pointer; display: flex;
+      align-items: center; gap: 5px; color: var(--text-secondary);
+      white-space: nowrap; transition: all 0.15s;
+    }
+    .filter-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .filter-btn.active { border-color: var(--primary); background: var(--primary-light); color: var(--primary); }
+
+    /* ── MEETING CARD ── */
+    .meeting-list { display: flex; flex-direction: column; gap: 12px; }
+    .meeting-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+      transition: box-shadow 0.15s;
+      cursor: pointer;
+    }
+    .meeting-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); border-color: #CBD5E1; }
+    .meeting-card-header {
+      padding: 16px 20px;
+      display: flex; align-items: flex-start; justify-content: space-between;
+    }
+    .meeting-left { flex: 1; }
+    .meeting-title-row {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+    }
+    .meeting-title { font-size: 15px; font-weight: 600; }
+    .status-badge {
+      font-size: 10px; font-weight: 600; padding: 2px 8px;
+      border-radius: 20px; white-space: nowrap;
+    }
+    .badge-completed { background: #ECFDF5; color: #065F46; }
+    .badge-failed { background: #FEF2F2; color: #991B1B; }
+    .badge-processing { background: #FFFBEB; color: #92400E; }
+    .badge-pending { background: var(--bg); color: var(--text-muted); }
+    .meeting-meta {
+      display: flex; align-items: center; gap: 16px;
+      font-size: 12px; color: var(--text-secondary);
+    }
+    .meeting-meta span { display: flex; align-items: center; gap: 4px; }
+    .meeting-right { display: flex; align-items: center; gap: 8px; }
+    .action-btn {
+      padding: 6px 12px; border-radius: 7px; font-size: 12px;
+      font-weight: 500; cursor: pointer; border: none;
+      transition: all 0.15s; white-space: nowrap;
+    }
+    .action-btn-primary {
+      background: var(--primary-light); color: var(--primary);
+    }
+    .action-btn-primary:hover { background: #DDD6FE; }
+    .action-btn-ghost {
+      background: var(--bg); color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    .action-btn-ghost:hover { color: var(--text); }
+    .action-btn-danger {
+      background: #FEF2F2; color: var(--danger);
+    }
+
+    /* ── MEETING EXPANDED ── */
+    .meeting-body {
+      border-top: 1px solid var(--border);
+      padding: 0;
+      display: none;
+    }
+    .meeting-card.expanded .meeting-body { display: block; }
+    .meeting-tabs {
+      display: flex; gap: 0; border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+    }
+    .meeting-tab {
+      padding: 10px 16px; font-size: 13px; font-weight: 500;
+      color: var(--text-secondary); cursor: pointer;
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+      transition: all 0.15s;
+    }
+    .meeting-tab:hover { color: var(--text); }
+    .meeting-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    .tab-content { padding: 20px; display: none; }
+    .tab-content.active { display: block; }
+
+    /* Summary tab */
+    .summary-section { margin-bottom: 20px; }
+    .summary-heading {
+      font-size: 12px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 10px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .summary-text { font-size: 13px; line-height: 1.7; color: var(--text); }
+    .action-items { display: flex; flex-direction: column; gap: 6px; }
+    .action-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 9px 12px; background: var(--bg); border-radius: 8px;
+    }
+    .action-check {
+      width: 16px; height: 16px; border-radius: 4px;
+      border: 2px solid var(--border); flex-shrink: 0; margin-top: 1px;
+      cursor: pointer;
+    }
+    .action-check.done { background: var(--success); border-color: var(--success); }
+    .action-item-text { font-size: 12.5px; line-height: 1.5; }
+    .action-item-text.done { text-decoration: line-through; color: var(--text-muted); }
+    .action-assignee {
+      font-size: 11px; color: var(--primary); font-weight: 600; white-space: nowrap;
+    }
+    .decisions { display: flex; flex-direction: column; gap: 6px; }
+    .decision-item {
+      display: flex; gap: 8px; padding: 8px 12px;
+      background: #F0FDF4; border-radius: 8px;
+      border-left: 3px solid var(--success);
+    }
+    .decision-text { font-size: 12.5px; }
+
+    /* Transcript tab */
+    .transcript-full { font-size: 12.5px; line-height: 1.6; }
+    .transcript-line { margin-bottom: 12px; }
+    .transcript-header {
+      display: flex; gap: 8px; align-items: center; margin-bottom: 3px;
+    }
+    .speaker-chip {
+      font-size: 11px; font-weight: 600; padding: 1px 8px;
+      background: var(--primary-light); color: var(--primary);
+      border-radius: 20px;
+    }
+    .transcript-time { font-size: 11px; color: var(--text-muted); }
+    .transcript-text { color: var(--text); }
+
+    /* Export tab */
+    .export-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .export-card {
+      border: 1.5px solid var(--border); border-radius: 10px;
+      padding: 16px; text-align: center; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .export-card:hover { border-color: var(--primary); background: var(--primary-light); }
+    .export-icon { font-size: 28px; margin-bottom: 8px; }
+    .export-label { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    .export-desc { font-size: 11px; color: var(--text-muted); }
+
+    /* ── EMPTY STATE ── */
+    .empty-state {
+      text-align: center; padding: 60px 20px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .empty-icon { font-size: 48px; margin-bottom: 16px; }
+    .empty-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+    .empty-desc { font-size: 13px; color: var(--text-secondary); }
+
+    /* ── CALENDAR BADGE ── */
+    .cal-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10px; color: #1967D2; background: #E8F0FE;
+      padding: 2px 7px; border-radius: 4px; font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">✦</div>
+      <div>
+        <div class="logo-text">Meet Assistant</div>
+        <div class="logo-sub">Meeting History</div>
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Menu</div>
+      <div class="nav-item">
+        <span class="nav-icon">🟢</span> Đang họp
+      </div>
+      <div class="nav-item active">
+        <span class="nav-icon">🕐</span> Lịch sử
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">⚙️</span> Cài đặt
+      </div>
+    </div>
+    <div class="sidebar-footer">
+      <span>Meet Assistant v1.0</span>
+      <span>Phản hồi</span>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="page-header">
+      <div>
+        <div class="page-title">🕐 Lịch sử cuộc họp</div>
+        <div class="page-subtitle">Toàn bộ transcript và summary được lưu local trên máy bạn.</div>
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">📋</div>
+        <div class="stat-value">24</div>
+        <div class="stat-label">Cuộc họp tháng này</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div class="stat-value">67</div>
+        <div class="stat-label">Action items</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⏱️</div>
+        <div class="stat-value">48h</div>
+        <div class="stat-label">Tổng thời gian họp</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">💾</div>
+        <div class="stat-value">12MB</div>
+        <div class="stat-label">Dung lượng lưu trữ</div>
+      </div>
+    </div>
+
+    <!-- TOOLBAR -->
+    <div class="toolbar">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input class="search-input" type="text" placeholder="Tìm kiếm transcript, action items, người tham gia..." />
+      </div>
+      <button class="filter-btn active">📋 Tất cả</button>
+      <button class="filter-btn">✅ Completed</button>
+      <button class="filter-btn">⚠️ Failed</button>
+      <button class="filter-btn">📅 Tháng này</button>
+    </div>
+
+    <!-- MEETING LIST -->
+    <div class="meeting-list">
+
+      <!-- MEETING 1 — expanded with summary -->
+      <div class="meeting-card expanded" onclick="toggleCard(event, this)">
+        <div class="meeting-card-header">
+          <div class="meeting-left">
+            <div class="meeting-title-row">
+              <span class="meeting-title">Sprint Planning W20</span>
+              <span class="status-badge badge-completed">✅ Completed</span>
+              <span class="cal-badge">📅 Calendar synced</span>
+            </div>
+            <div class="meeting-meta">
+              <span>📅 08/05/2026</span>
+              <span>🕐 09:01 – 10:02</span>
+              <span>⏱️ 61 phút</span>
+              <span>👥 5 người</span>
+              <span>💬 183 dòng</span>
+            </div>
+          </div>
+          <div class="meeting-right" onclick="event.stopPropagation()">
+            <button class="action-btn action-btn-primary">📤 Export</button>
+            <button class="action-btn action-btn-ghost">🗑️</button>
+          </div>
+        </div>
+
+        <div class="meeting-body">
+          <div class="meeting-tabs">
+            <div class="meeting-tab active" onclick="switchTab(event, this, 'summary-1')">📝 Summary</div>
+            <div class="meeting-tab" onclick="switchTab(event, this, 'transcript-1')">💬 Transcript</div>
+            <div class="meeting-tab" onclick="switchTab(event, this, 'export-1')">📤 Export</div>
+          </div>
+
+          <!-- SUMMARY TAB -->
+          <div class="tab-content active" id="summary-1">
+            <div class="summary-section">
+              <div class="summary-heading">📌 Tóm tắt</div>
+              <div class="summary-text">
+                Sprint planning W20 tập trung vào việc integrate authentication API vào frontend. Backend đã hoàn thành, team thống nhất deadline integrate là thứ 4, test E2E thứ 5 và deploy staging cuối tuần.
+              </div>
+            </div>
+            <div class="summary-section">
+              <div class="summary-heading">✅ Action Items (4)</div>
+              <div class="action-items">
+                <div class="action-item">
+                  <div class="action-check" onclick="toggleActionItem(event, this)"></div>
+                  <div style="flex:1">
+                    <div class="action-item-text">Gửi Swagger docs link vào Slack trước 17h hôm nay</div>
+                  </div>
+                  <span class="action-assignee">Trần Văn B</span>
+                </div>
+                <div class="action-item">
+                  <div class="action-check done" onclick="toggleActionItem(event, this)"></div>
+                  <div style="flex:1">
+                    <div class="action-item-text done">Integrate authentication API vào frontend</div>
+                  </div>
+                  <span class="action-assignee">Lê Thị C</span>
+                </div>
+                <div class="action-item">
+                  <div class="action-check" onclick="toggleActionItem(event, this)"></div>
+                  <div style="flex:1">
+                    <div class="action-item-text">Test E2E authentication flow</div>
+                  </div>
+                  <span class="action-assignee">Team</span>
+                </div>
+                <div class="action-item">
+                  <div class="action-check" onclick="toggleActionItem(event, this)"></div>
+                  <div style="flex:1">
+                    <div class="action-item-text">Deploy lên staging environment</div>
+                  </div>
+                  <span class="action-assignee">Nguyễn Văn A</span>
+                </div>
+              </div>
+            </div>
+            <div class="summary-section">
+              <div class="summary-heading">🟢 Quyết định (2)</div>
+              <div class="decisions">
+                <div class="decision-item">
+                  <div class="decision-text">Deadline integrate frontend: thứ 4 tuần này</div>
+                </div>
+                <div class="decision-item">
+                  <div class="decision-text">Deploy staging vào cuối tuần, không deploy thứ 6</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TRANSCRIPT TAB -->
+          <div class="tab-content" id="transcript-1">
+            <div class="transcript-full">
+              <div class="transcript-line">
+                <div class="transcript-header">
+                  <span class="speaker-chip">Nguyễn Văn A</span>
+                  <span class="transcript-time">09:01</span>
+                </div>
+                <div class="transcript-text">Chào mọi người, hôm nay chúng ta bắt đầu sprint planning cho tuần 20 nhé. Agenda hôm nay gồm review sprint 19 và planning sprint 20.</div>
+              </div>
+              <div class="transcript-line">
+                <div class="transcript-header">
+                  <span class="speaker-chip">Trần Văn B</span>
+                  <span class="transcript-time">09:03</span>
+                </div>
+                <div class="transcript-text">Backend API authentication đã xong 100%, deploy lên staging rồi. Đang đợi frontend integrate vào.</div>
+              </div>
+              <div class="transcript-line">
+                <div class="transcript-header">
+                  <span class="speaker-chip">Lê Thị C</span>
+                  <span class="transcript-time">09:05</span>
+                </div>
+                <div class="transcript-text">Mình sẽ integrate trước thứ 4. Anh B có thể gửi Swagger link không, để mình dựa vào đó implement.</div>
+              </div>
+              <div class="transcript-line">
+                <div class="transcript-header">
+                  <span class="speaker-chip">Trần Văn B</span>
+                  <span class="transcript-time">09:06</span>
+                </div>
+                <div class="transcript-text">Được, mình sẽ gửi link Swagger trong Slack trước 5h chiều nay, kèm ví dụ request/response.</div>
+              </div>
+              <div class="transcript-line">
+                <div class="transcript-header">
+                  <span class="speaker-chip">Nguyễn Văn A</span>
+                  <span class="transcript-time">09:08</span>
+                </div>
+                <div class="transcript-text">Vậy kế hoạch là: integrate xong trước thứ 4, test E2E thứ 5, deploy staging cuối tuần. Mọi người đồng ý không?</div>
+              </div>
+              <div style="text-align:center;padding:12px;color:var(--text-muted);font-size:12px">
+                ... 178 dòng tiếp theo
+              </div>
+            </div>
+          </div>
+
+          <!-- EXPORT TAB -->
+          <div class="tab-content" id="export-1">
+            <div class="export-grid">
+              <div class="export-card">
+                <div class="export-icon">📋</div>
+                <div class="export-label">Copy Markdown</div>
+                <div class="export-desc">Dùng cho Notion, GitHub, Obsidian</div>
+              </div>
+              <div class="export-card">
+                <div class="export-icon">✉️</div>
+                <div class="export-label">Copy Plain Text</div>
+                <div class="export-desc">Dán thẳng vào Gmail, Slack</div>
+              </div>
+              <div class="export-card">
+                <div class="export-icon">💾</div>
+                <div class="export-label">Download .md</div>
+                <div class="export-desc">Lưu file Markdown</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MEETING 2 — failed -->
+      <div class="meeting-card" onclick="toggleCard(event, this)">
+        <div class="meeting-card-header">
+          <div class="meeting-left">
+            <div class="meeting-title-row">
+              <span class="meeting-title">Product Review — Q2 Goals</span>
+              <span class="status-badge badge-failed">⚠️ Failed</span>
+            </div>
+            <div class="meeting-meta">
+              <span>📅 07/05/2026</span>
+              <span>🕐 14:00 – 15:30</span>
+              <span>⏱️ 90 phút</span>
+              <span>👥 8 người</span>
+            </div>
+          </div>
+          <div class="meeting-right" onclick="event.stopPropagation()">
+            <button class="action-btn action-btn-primary" style="background:#FEF2F2;color:var(--danger)">🔄 Thử lại</button>
+            <button class="action-btn action-btn-ghost">📄 Transcript</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MEETING 3 -->
+      <div class="meeting-card" onclick="toggleCard(event, this)">
+        <div class="meeting-card-header">
+          <div class="meeting-left">
+            <div class="meeting-title-row">
+              <span class="meeting-title">1:1 Tech Lead — Career Review</span>
+              <span class="status-badge badge-completed">✅ Completed</span>
+              <span class="cal-badge">📅 Calendar synced</span>
+            </div>
+            <div class="meeting-meta">
+              <span>📅 06/05/2026</span>
+              <span>🕐 10:00 – 10:30</span>
+              <span>⏱️ 30 phút</span>
+              <span>👥 2 người</span>
+              <span>💬 54 dòng</span>
+            </div>
+          </div>
+          <div class="meeting-right" onclick="event.stopPropagation()">
+            <button class="action-btn action-btn-primary">📤 Export</button>
+            <button class="action-btn action-btn-ghost">🗑️</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MEETING 4 — processing -->
+      <div class="meeting-card" onclick="toggleCard(event, this)">
+        <div class="meeting-card-header">
+          <div class="meeting-left">
+            <div class="meeting-title-row">
+              <span class="meeting-title">All Hands — May 2026</span>
+              <span class="status-badge badge-processing">⏳ Đang tóm tắt...</span>
+            </div>
+            <div class="meeting-meta">
+              <span>📅 05/05/2026</span>
+              <span>🕐 09:00 – 10:30</span>
+              <span>⏱️ 90 phút</span>
+              <span>👥 32 người</span>
+              <span>💬 421 dòng</span>
+            </div>
+          </div>
+          <div class="meeting-right" onclick="event.stopPropagation()">
+            <span style="font-size:12px;color:var(--text-muted)">Chunk 3/9...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- MEETING 5 -->
+      <div class="meeting-card" onclick="toggleCard(event, this)">
+        <div class="meeting-card-header">
+          <div class="meeting-left">
+            <div class="meeting-title-row">
+              <span class="meeting-title">Bug Triage — API Errors</span>
+              <span class="status-badge badge-completed">✅ Completed</span>
+            </div>
+            <div class="meeting-meta">
+              <span>📅 04/05/2026</span>
+              <span>🕐 15:00 – 15:45</span>
+              <span>⏱️ 45 phút</span>
+              <span>👥 4 người</span>
+              <span>💬 97 dòng</span>
+            </div>
+          </div>
+          <div class="meeting-right" onclick="event.stopPropagation()">
+            <button class="action-btn action-btn-primary">📤 Export</button>
+            <button class="action-btn action-btn-ghost">🗑️</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+  function toggleCard(e, card) {
+    if (e.target.classList.contains('action-btn') ||
+        e.target.classList.contains('meeting-tab') ||
+        e.target.classList.contains('action-check')) return;
+    card.classList.toggle('expanded');
+  }
+
+  function switchTab(e, tab, contentId) {
+    e.stopPropagation();
+    const card = tab.closest('.meeting-card');
+    card.querySelectorAll('.meeting-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    card.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById(contentId).classList.add('active');
+  }
+
+  function toggleActionItem(e, el) {
+    e.stopPropagation();
+    el.classList.toggle('done');
+    const text = el.closest('.action-item').querySelector('.action-item-text');
+    text.classList.toggle('done');
+  }
+</script>
+</body>
+</html>

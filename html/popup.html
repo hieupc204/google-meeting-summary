@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meet Assistant — Popup</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --primary: #4F46E5;
+      --primary-light: #EEF2FF;
+      --primary-dark: #3730A3;
+      --cyan: #06B6D4;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --danger: #EF4444;
+      --pause: #8B5CF6;
+      --bg: #F8FAFC;
+      --surface: #FFFFFF;
+      --border: #E2E8F0;
+      --text: #1E293B;
+      --text-secondary: #64748B;
+      --text-muted: #94A3B8;
+      --radius: 10px;
+      --shadow: 0 4px 16px rgba(0,0,0,0.08);
+    }
+
+    body {
+      width: 380px;
+      min-height: 540px;
+      background: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    /* ── HEADER ── */
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--primary);
+    }
+    .logo-icon {
+      width: 28px; height: 28px;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 14px;
+    }
+    .header-actions {
+      display: flex;
+      gap: 4px;
+    }
+    .icon-btn {
+      width: 28px; height: 28px;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-secondary);
+      font-size: 15px;
+      transition: background 0.15s;
+    }
+    .icon-btn:hover { background: var(--border); }
+
+    /* ── STATUS BAR ── */
+    .status-bar {
+      margin: 12px 16px 0;
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .status-bar.capturing {
+      background: #ECFDF5;
+      border: 1px solid #A7F3D0;
+      color: #065F46;
+    }
+    .status-bar.waiting {
+      background: #FFFBEB;
+      border: 1px solid #FDE68A;
+      color: #92400E;
+    }
+    .status-bar.paused {
+      background: #F5F3FF;
+      border: 1px solid #DDD6FE;
+      color: #5B21B6;
+    }
+    .status-bar.idle {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+    .status-left { display: flex; align-items: center; gap: 8px; }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+    }
+    .capturing .status-dot {
+      background: var(--success);
+      box-shadow: 0 0 0 3px rgba(16,185,129,0.2);
+      animation: pulse 2s infinite;
+    }
+    .waiting .status-dot { background: var(--warning); }
+    .paused .status-dot { background: var(--pause); }
+    .idle .status-dot { background: var(--text-muted); }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 3px rgba(16,185,129,0.2); }
+      50% { box-shadow: 0 0 0 6px rgba(16,185,129,0.05); }
+    }
+    .status-timer {
+      font-variant-numeric: tabular-nums;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* ── MEETING INFO ── */
+    .meeting-info {
+      margin: 10px 16px 0;
+      padding: 10px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .meeting-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .meeting-title .edit-icon {
+      opacity: 0;
+      transition: opacity 0.15s;
+      cursor: pointer;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .meeting-info:hover .edit-icon { opacity: 1; }
+    .meeting-meta {
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .meeting-meta span { display: flex; align-items: center; gap: 3px; }
+
+    /* ── TRANSCRIPT ── */
+    .transcript-section {
+      margin: 10px 16px 0;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-secondary);
+    }
+    .section-action {
+      font-size: 11px;
+      color: var(--primary);
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .transcript-box {
+      height: 180px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow-y: auto;
+      padding: 10px;
+    }
+    .transcript-box::-webkit-scrollbar { width: 4px; }
+    .transcript-box::-webkit-scrollbar-track { background: transparent; }
+    .transcript-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .transcript-line {
+      margin-bottom: 10px;
+    }
+    .transcript-line:last-child { margin-bottom: 0; }
+    .transcript-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 2px;
+      display: flex;
+      gap: 6px;
+    }
+    .speaker-name { color: var(--primary); font-weight: 600; }
+    .transcript-text {
+      font-size: 12.5px;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .paused-marker {
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-muted);
+      padding: 6px 0;
+      border-top: 1px dashed var(--border);
+      border-bottom: 1px dashed var(--border);
+      margin: 6px 0;
+      font-style: italic;
+    }
+    .transcript-empty {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      gap: 6px;
+    }
+    .transcript-empty .empty-icon { font-size: 24px; }
+    .transcript-empty p { font-size: 12px; text-align: center; line-height: 1.5; }
+
+    /* ── CONTROLS ── */
+    .controls {
+      margin: 10px 16px 0;
+      display: flex;
+      gap: 8px;
+    }
+    .btn {
+      flex: 1;
+      padding: 9px 12px;
+      border-radius: 8px;
+      border: none;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      transition: all 0.15s;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-pause {
+      background: #F5F3FF;
+      color: var(--pause);
+      border: 1px solid #DDD6FE;
+    }
+    .btn-pause:hover { background: #EDE9FE; }
+    .btn-stop {
+      background: #FEF2F2;
+      color: var(--danger);
+      border: 1px solid #FECACA;
+    }
+    .btn-stop:hover { background: #FEE2E2; }
+    .btn-outline {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-outline:hover { background: var(--bg); }
+
+    /* ── SUMMARIZE BUTTON ── */
+    .summarize-wrap {
+      margin: 10px 16px 0;
+    }
+    .btn-summarize {
+      width: 100%;
+      padding: 11px;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      color: white;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      transition: opacity 0.15s;
+    }
+    .btn-summarize:hover { opacity: 0.9; }
+    .btn-summarize:disabled {
+      background: var(--border);
+      color: var(--text-muted);
+      cursor: not-allowed;
+    }
+
+    /* ── STATS ROW ── */
+    .stats-row {
+      margin: 10px 16px 0;
+      display: flex;
+      gap: 8px;
+    }
+    .stat-card {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    .stat-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    /* ── FOOTER ── */
+    .footer {
+      margin: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .footer-links {
+      display: flex;
+      gap: 12px;
+    }
+    .footer-link {
+      font-size: 11px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      text-decoration: none;
+    }
+    .footer-link:hover { color: var(--primary); }
+    .footer-version {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    /* ── TAB SWITCHER (for state demo) ── */
+    .demo-tabs {
+      margin: 8px 16px 0;
+      display: flex;
+      gap: 4px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px;
+    }
+    .demo-tab {
+      flex: 1;
+      padding: 4px 6px;
+      border-radius: 6px;
+      border: none;
+      font-size: 10px;
+      font-weight: 500;
+      cursor: pointer;
+      background: transparent;
+      color: var(--text-secondary);
+      transition: all 0.15s;
+    }
+    .demo-tab.active {
+      background: var(--surface);
+      color: var(--primary);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .demo-label {
+      text-align: center;
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 6px;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">✦</div>
+      Meet Assistant
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" title="Lịch sử cuộc họp">🕐</button>
+      <button class="icon-btn" title="Cài đặt">⚙️</button>
+    </div>
+  </div>
+
+  <!-- DEMO STATE SWITCHER (chỉ cho mockup) -->
+  <div class="demo-tabs">
+    <button class="demo-tab active" onclick="setStateCapturing()">🟢 Capturing</button>
+    <button class="demo-tab" onclick="setStatePaused()">🟡 Paused</button>
+    <button class="demo-tab" onclick="setStateWaiting()">⏳ Waiting</button>
+    <button class="demo-tab" onclick="setStateIdle()">⚪ Idle</button>
+  </div>
+  <p class="demo-label">↑ Demo states (chỉ cho mockup)</p>
+
+  <!-- STATUS BAR -->
+  <div class="status-bar capturing" id="statusBar">
+    <div class="status-left">
+      <div class="status-dot"></div>
+      <span id="statusText">Đang ghi transcript</span>
+    </div>
+    <span class="status-timer" id="statusTimer">24:37</span>
+  </div>
+
+  <!-- MEETING INFO -->
+  <div class="meeting-info">
+    <div class="meeting-title">
+      Sprint Planning W20
+      <span class="edit-icon">✏️</span>
+    </div>
+    <div class="meeting-meta">
+      <span>📅 08/05/2026</span>
+      <span>🕐 09:01</span>
+      <span>👥 5 người</span>
+    </div>
+  </div>
+
+  <!-- TRANSCRIPT -->
+  <div class="transcript-section">
+    <div class="section-header">
+      <span class="section-title">Transcript</span>
+      <a class="section-action" href="#">Xem đầy đủ</a>
+    </div>
+    <div class="transcript-box" id="transcriptBox">
+      <div class="transcript-line">
+        <div class="transcript-meta">
+          <span class="speaker-name">Nguyễn Văn A</span>
+          <span>09:01</span>
+        </div>
+        <div class="transcript-text">Chào mọi người, hôm nay chúng ta bắt đầu sprint planning cho tuần 20 nhé.</div>
+      </div>
+      <div class="transcript-line">
+        <div class="transcript-meta">
+          <span class="speaker-name">Trần Văn B</span>
+          <span>09:02</span>
+        </div>
+        <div class="transcript-text">Backend API authentication đã xong, đang đợi frontend integrate.</div>
+      </div>
+      <div class="transcript-line">
+        <div class="transcript-meta">
+          <span class="speaker-name">Lê Thị C</span>
+          <span>09:04</span>
+        </div>
+        <div class="transcript-text">Mình sẽ integrate trước thứ 4. Cần API docs không anh B?</div>
+      </div>
+      <div class="transcript-line">
+        <div class="transcript-meta">
+          <span class="speaker-name">Trần Văn B</span>
+          <span>09:05</span>
+        </div>
+        <div class="transcript-text">Mình sẽ gửi Swagger link trong Slack trước 5h chiều nay.</div>
+      </div>
+      <div class="transcript-line">
+        <div class="transcript-meta">
+          <span class="speaker-name">Nguyễn Văn A</span>
+          <span>09:07</span>
+        </div>
+        <div class="transcript-text">OK vậy kế hoạch là integrate xong trước thứ 4, test E2E thứ 5 và deploy staging cuối tuần.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-value">47</div>
+      <div class="stat-label">Dòng transcript</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">5</div>
+      <div class="stat-label">Người tham gia</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">24:37</div>
+      <div class="stat-label">Thời lượng</div>
+    </div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="controls" id="controlsCapturing">
+    <button class="btn btn-pause" onclick="setStatePaused()">⏸ Tạm dừng</button>
+    <button class="btn btn-stop" onclick="setStateIdle()">⏹ Dừng ghi</button>
+  </div>
+
+  <!-- SUMMARIZE -->
+  <div class="summarize-wrap">
+    <button class="btn-summarize" id="summarizeBtn">
+      ✦ Kết thúc &amp; Tóm tắt
+    </button>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="footer-links">
+      <a class="footer-link" href="#">🕐 Lịch sử</a>
+      <a class="footer-link" href="#">⚙️ Cài đặt</a>
+    </div>
+    <span class="footer-version">v1.0.0</span>
+  </div>
+
+  <script>
+    function setStateCapturing() {
+      const bar = document.getElementById('statusBar');
+      bar.className = 'status-bar capturing';
+      document.getElementById('statusText').textContent = 'Đang ghi transcript';
+      document.getElementById('transcriptBox').innerHTML = `
+        <div class="transcript-line">
+          <div class="transcript-meta"><span class="speaker-name">Nguyễn Văn A</span><span>09:01</span></div>
+          <div class="transcript-text">Chào mọi người, hôm nay chúng ta bắt đầu sprint planning cho tuần 20 nhé.</div>
+        </div>
+        <div class="transcript-line">
+          <div class="transcript-meta"><span class="speaker-name">Trần Văn B</span><span>09:02</span></div>
+          <div class="transcript-text">Backend API authentication đã xong, đang đợi frontend integrate.</div>
+        </div>
+        <div class="transcript-line">
+          <div class="transcript-meta"><span class="speaker-name">Lê Thị C</span><span>09:04</span></div>
+          <div class="transcript-text">Mình sẽ integrate trước thứ 4. Cần API docs không anh B?</div>
+        </div>
+        <div class="transcript-line">
+          <div class="transcript-meta"><span class="speaker-name">Trần Văn B</span><span>09:05</span></div>
+          <div class="transcript-text">Mình sẽ gửi Swagger link trong Slack trước 5h chiều nay.</div>
+        </div>`;
+      document.getElementById('summarizeBtn').disabled = false;
+      setActiveDemoTab(0);
+    }
+
+    function setStatePaused() {
+      const bar = document.getElementById('statusBar');
+      bar.className = 'status-bar paused';
+      document.getElementById('statusText').textContent = 'Đã tạm dừng (2:14)';
+      document.getElementById('transcriptBox').innerHTML = `
+        <div class="transcript-line">
+          <div class="transcript-meta"><span class="speaker-name">Nguyễn Văn A</span><span>09:01</span></div>
+          <div class="transcript-text">Chào mọi người, hôm nay chúng ta bắt đầu sprint planning.</div>
+        </div>
+        <div class="paused-marker">⏸ Capture đã tạm dừng: 09:14 → 09:21</div>
+        <div class="transcript-line">
+          <div class="transcript-meta"><span class="speaker-name">Trần Văn B</span><span>09:21</span></div>
+          <div class="transcript-text">OK quay lại phần task assignment nhé.</div>
+        </div>`;
+      setActiveDemoTab(1);
+    }
+
+    function setStateWaiting() {
+      const bar = document.getElementById('statusBar');
+      bar.className = 'status-bar waiting';
+      document.getElementById('statusText').textContent = 'Chờ phụ đề...';
+      document.getElementById('transcriptBox').innerHTML = `
+        <div class="transcript-empty">
+          <div class="empty-icon">💬</div>
+          <p>Chưa nhận được transcript.<br>Hãy bật Closed Caption trong Google Meet.</p>
+          <button class="btn btn-primary" style="margin-top:8px;flex:none;padding:7px 14px;">Bật CC ngay</button>
+        </div>`;
+      setActiveDemoTab(2);
+    }
+
+    function setStateIdle() {
+      const bar = document.getElementById('statusBar');
+      bar.className = 'status-bar idle';
+      document.getElementById('statusText').textContent = 'Chưa có cuộc họp';
+      document.getElementById('transcriptBox').innerHTML = `
+        <div class="transcript-empty">
+          <div class="empty-icon">📋</div>
+          <p>Tham gia Google Meet để<br>bắt đầu ghi transcript tự động.</p>
+        </div>`;
+      document.getElementById('summarizeBtn').disabled = true;
+      setActiveDemoTab(3);
+    }
+
+    function setActiveDemoTab(index) {
+      document.querySelectorAll('.demo-tab').forEach((t, i) => {
+        t.classList.toggle('active', i === index);
+      });
+    }
+
+    // Timer
+    let seconds = 1477;
+    setInterval(() => {
+      seconds++;
+      const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+      const s = (seconds % 60).toString().padStart(2, '0');
+      document.getElementById('statusTimer').textContent = `${m}:${s}`;
+    }, 1000);
+  </script>
+</body>
+</html>
