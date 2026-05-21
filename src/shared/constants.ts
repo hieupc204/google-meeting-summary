@@ -9,10 +9,11 @@ export const DEFAULT_DRAFT_EMAIL_LABELS: DraftEmailLabels = {
 };
 
 export const DB_NAME = 'meet-assistant';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 export const STORE_TRANSCRIPTS = 'transcripts';
 export const STORE_MEETINGS = 'meetings';
+export const STORE_AUDIOS = 'audios';
 
 export const CAPTION_DEBOUNCE_MS = 400;
 export const SPEAKER_MERGE_WINDOW_MS = 4000;

@@ -24,49 +24,82 @@ export interface TranscribeResult {
 const MAX_PER_CHUNK_BYTES = 24 * 1024 * 1024; // 24MB safety margin under most provider 25MB caps
 
 // Send one audio chunk to an OpenAI-compatible /audio/transcriptions endpoint.
+// Some OpenAI-compatible endpoints reject params they don't recognize
+// (e.g. `diarization`, `language` on Whisper-v1-only servers). Track which
+// optional fields the current server has already rejected so we don't retry
+// the same chunk in a loop and can skip them upfront for subsequent chunks.
+const SERVER_UNSUPPORTED: Map<string, Set<string>> = new Map();
+
+function buildForm(
+  chunk: AudioChunk,
+  cfg: TranscriptionConfig,
+  filename: string,
+  skip: Set<string>,
+): FormData {
+  const fd = new FormData();
+  fd.append('file', chunk.blob, filename);
+  fd.append('model', cfg.model.trim());
+  fd.append('response_format', 'verbose_json');
+  fd.append('temperature', '0');
+  if (cfg.language && cfg.language !== 'auto' && !skip.has('language')) fd.append('language', cfg.language);
+  if (cfg.prompt && cfg.prompt.trim() && !skip.has('prompt')) fd.append('prompt', cfg.prompt.trim());
+  if (cfg.diarization && !skip.has('diarization')) fd.append('diarization', 'true');
+  return fd;
+}
+
 async function transcribeChunk(
   chunk: AudioChunk,
   cfg: TranscriptionConfig,
   filename: string,
 ): Promise<{ text: string; segments?: { start: number; end: number; text: string; speaker?: string }[] }> {
   const url = `${cfg.endpoint.replace(/\/+$/, '').trim()}/audio/transcriptions`;
-  const fd = new FormData();
-  fd.append('file', chunk.blob, filename);
-  fd.append('model', cfg.model.trim());
-  fd.append('response_format', 'verbose_json');
-  // Deterministic output, less hallucination on silence/noise.
-  fd.append('temperature', '0');
-  if (cfg.language && cfg.language !== 'auto') fd.append('language', cfg.language);
-  if (cfg.prompt && cfg.prompt.trim()) fd.append('prompt', cfg.prompt.trim());
-  if (cfg.diarization) fd.append('diarization', 'true');
+  const serverKey = `${cfg.endpoint}|${cfg.model}`;
+  const skip = SERVER_UNSUPPORTED.get(serverKey) ?? new Set<string>();
 
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 300_000);
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${cfg.apiKey.trim()}` },
-      body: fd,
-      signal: ctrl.signal,
-    });
-  } catch (e) {
-    const err = e as Error;
-    if (err.name === 'AbortError') throw new Error('Transcribe timeout (>5 phút) cho 1 chunk');
-    throw new Error(`Fetch transcribe failed: ${err.message}`);
-  } finally {
-    clearTimeout(timer);
-  }
-  if (!res.ok) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const fd = buildForm(chunk, cfg, filename, skip);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 300_000);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${cfg.apiKey.trim()}` },
+        body: fd,
+        signal: ctrl.signal,
+      });
+    } catch (e) {
+      const err = e as Error;
+      if (err.name === 'AbortError') throw new Error('Transcribe timeout (>5 phút) cho 1 chunk');
+      throw new Error(`Fetch transcribe failed: ${err.message}`);
+    } finally {
+      clearTimeout(timer);
+    }
+    if (res.ok) {
+      const ct = res.headers.get('content-type') ?? '';
+      if (ct.includes('application/json')) {
+        return (await res.json()) as { text: string; segments?: { start: number; end: number; text: string; speaker?: string }[] };
+      }
+      const text = await res.text();
+      return { text };
+    }
     const body = await res.text().catch(() => '');
+    // Detect "unknown param X" / "Unrecognized request argument: X" and retry without it.
+    if (res.status === 400) {
+      const m = body.match(/unknown\s+param\s+`?([a-zA-Z_]+)`?/i)
+        ?? body.match(/unrecognized.*?argument[^a-zA-Z_]+([a-zA-Z_]+)/i)
+        ?? body.match(/"param"\s*:\s*"([a-zA-Z_]+)"/);
+      const bad = m?.[1];
+      if (bad && !skip.has(bad)) {
+        skip.add(bad);
+        SERVER_UNSUPPORTED.set(serverKey, skip);
+        console.warn(`[Transcribe] Server rejected param "${bad}", retrying without it.`);
+        continue;
+      }
+    }
     throw new Error(`Transcribe API ${res.status}: ${body.slice(0, 300)}`);
   }
-  const ct = res.headers.get('content-type') ?? '';
-  if (ct.includes('application/json')) {
-    return (await res.json()) as { text: string; segments?: { start: number; end: number; text: string; speaker?: string }[] };
-  }
-  const text = await res.text();
-  return { text };
+  throw new Error('Transcribe API: hết lượt retry sau khi loại bỏ các param không hỗ trợ.');
 }
 
 export async function transcribeFile(
@@ -130,8 +163,38 @@ export async function transcribeFile(
   }
 
   onProgress?.({ phase: 'merge', message: 'Hợp nhất transcript…', percent: 100 });
+
+  // Heuristic diarization: if user enabled diarization but server didn't tag
+  // distinct speakers (all segments share one label), toggle speakers on
+  // long pauses. Crude but useful for 2-person meetings without a real
+  // diarization backend.
+  const distinctSpeakers = new Set(segments.map((s) => s.speaker));
+  if (cfg.diarization && distinctSpeakers.size <= 1 && segments.length > 1) {
+    applyHeuristicDiarization(segments);
+  }
+
   const text = textParts.map((t) => t.trim()).filter(Boolean).join('\n\n');
   return { text, segments };
+}
+
+// Toggle between "Người 1" / "Người 2" whenever the gap between segments
+// exceeds PAUSE_SEC, OR the previous segment ended with a strong terminator
+// (.!?…) and is followed by a >0.6s gap. Best-effort only.
+const PAUSE_SEC = 1.5;
+const SOFT_PAUSE_SEC = 0.6;
+function applyHeuristicDiarization(segments: TranscribeSegment[]): void {
+  let current = 1;
+  segments[0].speaker = `Người ${current}`;
+  for (let i = 1; i < segments.length; i++) {
+    const prev = segments[i - 1];
+    const cur = segments[i];
+    const gap = cur.startSec - prev.endSec;
+    const prevEndsHard = /[.!?…]\s*$/.test(prev.text);
+    if (gap > PAUSE_SEC || (prevEndsHard && gap > SOFT_PAUSE_SEC)) {
+      current = current === 1 ? 2 : 1;
+    }
+    cur.speaker = `Người ${current}`;
+  }
 }
 
 // Whisper is famous for hallucinating boilerplate phrases on silence/noise:

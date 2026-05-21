@@ -128,13 +128,22 @@ body {
   color: var(--text-secondary);
 }
 
+/* ── CARD ROW ── */
+.card-row {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
 /* ── CARD ── */
 .card {
+  display: block;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   margin-bottom: 20px;
-  overflow: hidden;
+  height: auto;
+  min-height: 0;
 }
 .card-header {
   padding: 16px 20px;
@@ -142,6 +151,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .card-title {
   font-size: 14px;
@@ -150,7 +161,13 @@ body {
   align-items: center;
   gap: 8px;
 }
-.card-body { padding: 20px; }
+.card-body {
+  display: block;
+  padding: 20px;
+  overflow: visible;
+  height: auto;
+  min-height: 0;
+}
 
 /* ── FORM ELEMENTS ── */
 .form-row {
@@ -286,7 +303,16 @@ body {
 }
 
 /* ── CHECKBOX ── */
-.checkbox-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+@media (max-width: 720px) {
+  .checkbox-grid { grid-template-columns: minmax(0, 1fr); }
+}
 .checkbox-item {
   display: flex;
   align-items: center;
@@ -296,6 +322,7 @@ body {
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.15s;
+  min-width: 0;
 }
 .checkbox-item.checked {
   border-color: var(--primary);
@@ -314,7 +341,7 @@ body {
   border-color: var(--primary);
   color: white;
 }
-.checkbox-label { font-size: 12px; font-weight: 500; }
+.checkbox-label { font-size: 12px; font-weight: 500; min-width: 0; word-break: break-word; }
 
 /* ── GOOGLE CONNECT ── */
 .google-connect {

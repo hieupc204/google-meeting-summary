@@ -1,6 +1,7 @@
 import {
   DB_NAME,
   DB_VERSION,
+  STORE_AUDIOS,
   STORE_MEETINGS,
   STORE_TRANSCRIPTS,
 } from './constants';
@@ -33,7 +34,9 @@ function openDB(): Promise<IDBDatabase> {
         meetings.createIndex('createdAt', 'createdAt');
         meetings.createIndex('summaryStatus', 'summaryStatus');
       }
-      // future: if (oldVersion < 2) { ... }
+      if (oldVersion < 2) {
+        db.createObjectStore(STORE_AUDIOS, { keyPath: 'id' });
+      }
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -84,6 +87,9 @@ export async function deleteMeeting(id: string): Promise<void> {
   await Promise.all([
     withStore(STORE_MEETINGS, 'readwrite', (s) => s.delete(id)),
     withStore(STORE_TRANSCRIPTS, 'readwrite', (s) => s.delete(id)),
+    withStore(STORE_TRANSCRIPTS, 'readwrite', (s) => s.delete(`${id}:audio`)),
+    withStore(STORE_TRANSCRIPTS, 'readwrite', (s) => s.delete(`${id}:merged`)),
+    withStore(STORE_AUDIOS, 'readwrite', (s) => s.delete(id)),
   ]);
 }
 
@@ -177,6 +183,24 @@ export async function upsertTranscriptLine(
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
+}
+
+// ---------- Audio blobs ----------
+
+export async function saveAudioBlob(id: string, blob: Blob, mimeType: string): Promise<void> {
+  await withStore(STORE_AUDIOS, 'readwrite', (s) =>
+    s.put({ id, blob, mimeType, savedAt: Date.now() }),
+  );
+}
+
+export async function getAudioBlob(
+  id: string,
+): Promise<{ id: string; blob: Blob; mimeType: string } | undefined> {
+  return withStore(STORE_AUDIOS, 'readonly', (s) => s.get(id));
+}
+
+export async function deleteAudioBlob(id: string): Promise<void> {
+  await withStore(STORE_AUDIOS, 'readwrite', (s) => s.delete(id));
 }
 
 export async function deleteTranscriptsBefore(beforeMs: number): Promise<number> {

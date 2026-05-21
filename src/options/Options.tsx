@@ -204,6 +204,7 @@ export function AISection({
         </div>
       </div>
 
+      <div class="card-row">
       <div class="card">
         <div class="card-header">
           <div class="card-title">⚡ Chọn nhanh provider</div>
@@ -241,6 +242,8 @@ export function AISection({
         </div>
       </div>
 
+      </div>
+      <div class="card-row">
       <div class="card">
         <div class="card-header">
           <div class="card-title">🔧 Cấu hình chi tiết</div>
@@ -360,6 +363,7 @@ export function AISection({
           </div>
         </div>
       </div>
+      </div>
     </>
   );
 }
@@ -446,51 +450,59 @@ export function SummarySection({
         <div class="page-title">📝 Summary Preferences</div>
         <div class="page-subtitle">Tùy chỉnh nội dung AI tóm tắt sau mỗi cuộc họp.</div>
       </div>
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">📋 Nội dung tóm tắt</div>
-        </div>
-        <div class="card-body">
-          <div class="checkbox-grid">
-            {items.map(([key, label]) => {
-              const checked = Boolean(s.summary[key]);
-              return (
-                <div
-                  class={`checkbox-item ${checked ? 'checked' : ''}`}
-                  onClick={() => save({ summary: { ...s.summary, [key]: !checked } })}
-                >
-                  <div class="checkbox-box">{checked ? '✓' : ''}</div>
-                  <span class="checkbox-label">{label}</span>
-                </div>
-              );
-            })}
+      <div class="card-row">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">📋 Nội dung tóm tắt</div>
           </div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">🌐 Ngôn ngữ output</div>
-        </div>
-        <div class="card-body">
-          <div class="form-row single">
-            <div class="form-group">
-              <select
-                class="form-select"
-                value={s.language}
-                onChange={(e) =>
-                  save({ language: (e.target as HTMLSelectElement).value as UserSettings['language'] })
-                }
-              >
-                <option value="vi">🇻🇳 Tiếng Việt</option>
-                <option value="en">🇺🇸 English</option>
-                <option value="auto">🌐 Auto detect</option>
-              </select>
+          <div class="card-body">
+            <div class="checkbox-grid">
+              {items.map(([key, label]) => {
+                const checked = Boolean(s.summary[key]);
+                return (
+                  <div
+                    class={`checkbox-item ${checked ? 'checked' : ''}`}
+                    onClick={() => save({ summary: { ...s.summary, [key]: !checked } })}
+                  >
+                    <div class="checkbox-box">{checked ? '✓' : ''}</div>
+                    <span class="checkbox-label">{label}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
       </div>
-      <DraftEmailLabelsCard s={s} save={save} />
-      <SystemPromptCard s={s} save={save} />
+      <div class="card-row">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🌐 Ngôn ngữ output</div>
+          </div>
+          <div class="card-body">
+            <div class="form-row single">
+              <div class="form-group">
+                <select
+                  class="form-select"
+                  value={s.language}
+                  onChange={(e) =>
+                    save({ language: (e.target as HTMLSelectElement).value as UserSettings['language'] })
+                  }
+                >
+                  <option value="vi">🇻🇳 Tiếng Việt</option>
+                  <option value="en">🇺🇸 English</option>
+                  <option value="auto">🌐 Auto detect</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card-row">
+        <DraftEmailLabelsCard s={s} save={save} />
+      </div>
+      <div class="card-row">
+        <SystemPromptCard s={s} save={save} />
+      </div>
     </>
   );
 }
@@ -845,6 +857,7 @@ export function TranscriptionSection({
 
   return (
     <>
+      <div class="card-row">
       <div class="card">
         <div class="card-header">
           <div class="card-title">⚡ Chọn nhanh provider</div>
@@ -887,6 +900,8 @@ export function TranscriptionSection({
         </div>
       </div>
 
+      </div>
+      <div class="card-row">
       <div class="card">
         <div class="card-header">
           <div class="card-title">🔧 Cấu hình chi tiết</div>
@@ -1098,6 +1113,7 @@ export function TranscriptionSection({
             )}
           </div>
         </div>
+      </div>
       </div>
     </>
   );

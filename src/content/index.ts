@@ -51,6 +51,7 @@ const debugOrder: string[] = []; // preserves first-seen order
 let debugRoot: ShadowRoot | null = null;
 let debugBody: HTMLElement | null = null;
 let rootObserver: MutationObserver | null = null;
+let scanInterval: number | null = null;
 let scanScheduled = false;
 
 function getBlockId(el: Element): string {
@@ -126,13 +127,49 @@ function parseBlocksInRegion(region: Element): ParsedBlock[] {
 let lastProbeAt = 0;
 
 // Triggered by MutationObserver. Coalesces bursts of mutations into one scan
-// per animation frame so we don't re-process every characterData event.
+// per microtask. Use queueMicrotask (not rAF) — rAF is heavily throttled when
+// the Meet tab is in the background, which made early caption lines drop in
+// long meetings.
 function scheduleScan() {
   if (scanScheduled) return;
   scanScheduled = true;
-  requestAnimationFrame(() => {
+  queueMicrotask(() => {
     scanScheduled = false;
     void scanCaptions();
+  });
+}
+
+// Harvest a caption block that's about to leave the DOM. The element is still
+// detached-but-alive inside the MutationRecord, so textContent is intact.
+async function harvestRemovedBlock(block: Element) {
+  if (!currentMeetingId) return;
+  const speakerEl = block.querySelector?.('.NWpY1d');
+  const textEl = block.querySelector?.('.ygicle');
+  const speaker = (speakerEl?.textContent ?? '').trim();
+  const text = (textEl?.textContent ?? '').trim();
+  if (!speaker || !text) return;
+  const norm = normalize(text);
+  const prev = blockState.get(block);
+  if (prev && prev.norm === norm && prev.speaker === speaker) return;
+  const id = getBlockId(block);
+  blockState.set(block, { id, speaker, norm });
+  const hash = await hashLine(speaker, text);
+  const ts = prev ? (debugByBlock.get(id)?.ts ?? Date.now()) : Date.now();
+  const line: TranscriptLine = { speaker, text, ts, hash, blockId: id };
+  if (!debugByBlock.has(id)) debugOrder.push(id);
+  debugByBlock.set(id, line);
+  renderDebug();
+  await send({ type: 'CAPTURE_LINE', meetingId: currentMeetingId, line });
+}
+
+function harvestRemovedNodes(nodes: NodeList) {
+  nodes.forEach((n) => {
+    if (n.nodeType !== 1) return;
+    const el = n as Element;
+    const blocks = el.matches?.('.nMcdL')
+      ? [el]
+      : Array.from(el.querySelectorAll?.('.nMcdL') ?? []);
+    for (const b of blocks) void harvestRemovedBlock(b);
   });
 }
 
@@ -497,8 +534,8 @@ function renderDebug() {
     debugBody.innerHTML = `<div class="empty">${currentMeetingId ? 'Đang chờ caption… (bật CC trong Meet)' : 'Chưa vào meeting'}</div>`;
     return;
   }
-  const last = debugOrder.slice(-50).map((id) => debugByBlock.get(id)!).filter(Boolean);
-  debugBody.innerHTML = last
+  const all = debugOrder.map((id) => debugByBlock.get(id)!).filter(Boolean);
+  debugBody.innerHTML = all
     .map((l) => {
       const t = new Date(l.ts);
       const hh = String(t.getHours()).padStart(2, '0');
@@ -573,12 +610,22 @@ async function start() {
   await send({ type: 'CAPTURE_START', meetingId: idNow, title: getMeetingTitle() });
   autoEnableCCIfNeeded();
   rootObserver?.disconnect();
-  rootObserver = new MutationObserver(scheduleScan);
+  rootObserver = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      if (m.removedNodes.length) harvestRemovedNodes(m.removedNodes);
+    }
+    scheduleScan();
+  });
   rootObserver.observe(document.body, {
     childList: true,
     subtree: true,
     characterData: true,
   });
+  if (scanInterval) clearInterval(scanInterval);
+  // Safety-net periodic scan: catches mutations that observer batched/missed
+  // (Meet sometimes replaces large subtrees in one go). Cost is trivial since
+  // dedupe-by-norm short-circuits unchanged blocks.
+  scanInterval = window.setInterval(scheduleScan, 1500);
   scheduleScan();
 }
 
@@ -589,6 +636,10 @@ async function stop() {
   await send({ type: 'CAPTURE_END', meetingId: currentMeetingId });
   rootObserver?.disconnect();
   rootObserver = null;
+  if (scanInterval) {
+    clearInterval(scanInterval);
+    scanInterval = null;
+  }
   currentMeetingId = null;
   renderDebug();
 }

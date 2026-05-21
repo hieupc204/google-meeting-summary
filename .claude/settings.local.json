@@ -12,7 +12,15 @@
       "Bash(brew --version)",
       "Bash(brew install *)",
       "Bash(git init *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(gh repo *)",
+      "Bash(git config *)",
+      "Bash(git push *)",
+      "Bash(npx tsc *)",
+      "Bash(curl -sS -o /tmp/resp.txt -w \"HTTP %{http_code}\\\\n\" https://api-9router.hieupc.cloud/v1/models -m 15)",
+      "Read(//tmp/**)",
+      "Bash(curl -sS -o /tmp/cors.txt -D /tmp/cors_h.txt -w \"HTTP %{http_code}\\\\n\" -X OPTIONS https://api-9router.hieupc.cloud/v1/chat/completions -H \"Origin: chrome-extension://test\" -H \"Access-Control-Request-Method: POST\" -H \"Access-Control-Request-Headers: authorization,content-type\" -m 15)"
     ]
   }
 }

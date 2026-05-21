@@ -1,16 +1,21 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import {
   appendTranscriptEntries,
+  getAudioBlob,
   getTranscript,
   listRecentMeetings,
   saveMeeting,
+  saveTranscript,
 } from '@/shared/db';
+import { transcribeFile, type TranscribeProgress } from '@/shared/transcribe';
+import { mergeTranscriptsWithAI } from '@/shared/ai';
 import { getSettings, setSettings as saveSettings } from '@/shared/storage';
 import type {
   MeetingRecord,
   SummaryStatus,
   TranscriptEntry,
   TranscriptLine,
+  TranscriptSource,
   TranscriptRecord,
   UserSettings,
 } from '@/shared/types';
@@ -130,6 +135,7 @@ function mdToHtml(md: string): string {
 
 function inlineMd(s: string): string {
   let escaped = escapeHtml(s);
+  escaped = escaped.replace(/\{\{TAG:([^}]+)\}\}/g, '<span class="md-tag">$1</span>');
   escaped = escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   escaped = escaped.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
   escaped = escaped.replace(/`([^`]+)`/g, '<code>$1</code>');
@@ -147,7 +153,7 @@ function inlineMd(s: string): string {
 //          ...
 //   3. Inline:  "Speaker: text"  (one line per entry)
 //   4. Plain text → single line, speaker = "Người nói"
-async function parseTranscriptText(raw: string): Promise<TranscriptLine[]> {
+async function parseTranscriptText(raw: string, source: TranscriptSource = 'text'): Promise<TranscriptLine[]> {
   // (1) Try JSON unwrap.
   const trimmed = raw.trim();
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
@@ -165,7 +171,7 @@ async function parseTranscriptText(raw: string): Promise<TranscriptLine[]> {
             };
           })
           .filter((l) => l.text.trim());
-        return await materialize(out);
+        return await materialize(out, source);
       }
       if (typeof obj.text === 'string') raw = obj.text;
       else if (Array.isArray(obj.lines)) raw = obj.lines.map((l: { text?: string }) => l.text ?? '').join('\n');
@@ -238,11 +244,12 @@ async function parseTranscriptText(raw: string): Promise<TranscriptLine[]> {
     }
   }
 
-  return await materialize(blocks);
+  return await materialize(blocks, source);
 }
 
 async function materialize(
   blocks: { speaker: string; text: string }[],
+  source: TranscriptSource = 'text',
 ): Promise<TranscriptLine[]> {
   const out: TranscriptLine[] = [];
   const baseTs = Date.now();
@@ -255,18 +262,21 @@ async function materialize(
       .slice(0, 8)
       .map((bb) => bb.toString(16).padStart(2, '0'))
       .join('');
-    out.push({ speaker: b.speaker, text: b.text, ts: baseTs + i++ * 1000, hash });
+    out.push({ speaker: b.speaker, text: b.text, ts: baseTs + i++ * 1000, hash, source });
   }
   return out;
 }
 
-async function createMeetingFromText(
+async function createMeetingFromSources(
   title: string,
-  transcriptText: string,
+  textTranscript: string,
+  audioLines: TranscriptLine[],
 ): Promise<string> {
   const id = `manual-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const now = Date.now();
-  const lines = await parseTranscriptText(transcriptText);
+  const textLines = textTranscript.trim()
+    ? await parseTranscriptText(textTranscript, 'text')
+    : [];
   await saveMeeting({
     id,
     title: title.trim() || `Cuộc họp ${new Date(now).toLocaleString('vi-VN')}`,
@@ -278,7 +288,8 @@ async function createMeetingFromText(
     createdAt: now,
     updatedAt: now,
   });
-  if (lines.length) await appendTranscriptEntries(id, lines);
+  const merged: TranscriptLine[] = [...audioLines, ...textLines];
+  if (merged.length) await appendTranscriptEntries(id, merged);
   return id;
 }
 
@@ -288,6 +299,47 @@ function fmtDate(ts: number) {
 
 function fmtTime(ts: number) {
   return new Date(ts).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatBytes(n: number): string {
+  if (!n) return '0 B';
+  const u = ['B', 'KB', 'MB', 'GB'];
+  let i = 0;
+  let v = n;
+  while (v >= 1024 && i < u.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v.toFixed(v >= 10 || i === 0 ? 0 : 1)} ${u[i]}`;
+}
+
+// Returns a blob URL to play the meeting's recorded audio inline, or null if
+// no inline blob is stored. Caller is responsible for revoking the URL.
+async function loadAudioBlobUrl(meeting: MeetingRecord): Promise<string | null> {
+  if (!meeting.audio?.hasInlineBlob) return null;
+  const rec = await getAudioBlob(meeting.id);
+  if (!rec) return null;
+  return URL.createObjectURL(rec.blob);
+}
+
+async function openAudioInOS(meeting: MeetingRecord) {
+  const audio = meeting.audio;
+  if (!audio?.downloadId) {
+    alert('Meeting này không có file audio.');
+    return;
+  }
+  try {
+    const items = await chrome.downloads.search({ id: audio.downloadId });
+    const item = items[0];
+    if (!item || item.state !== 'complete' || item.exists === false) {
+      alert('File audio không còn trên ổ đĩa (đã bị xoá hoặc di chuyển).');
+      return;
+    }
+    await chrome.downloads.open(audio.downloadId);
+  } catch (e) {
+    console.error('[openAudioInOS]', e);
+    alert(`Không mở được audio: ${(e as Error).message}`);
+  }
 }
 
 export function History() {
@@ -460,13 +512,6 @@ export function History() {
           </div>
         </div>
 
-        <div class="stats-grid">
-          <StatCard icon="📋" value={String(stats.monthCount)} label="Cuộc họp tháng này" />
-          <StatCard icon="✅" value={String(stats.actionItems)} label="Action items" />
-          <StatCard icon="⏱️" value={`${stats.hours}h`} label="Tổng thời gian họp" />
-          <StatCard icon="💬" value={String(meetings.length)} label="Tổng meetings" />
-        </div>
-
         <div class="toolbar">
           <button
             class="action-btn action-btn-primary"
@@ -591,6 +636,8 @@ function CreateMeetingModal({
 }) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [audioLines, setAudioLines] = useState<TranscriptLine[]>([]);
+  const [audioPreview, setAudioPreview] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [transcribing, setTranscribing] = useState(false);
@@ -622,7 +669,9 @@ function CreateMeetingModal({
         if (typeof p.percent === 'number') setTranscribePct(p.percent);
       });
       const text = segmentsToTextareaFormat(result.segments) || result.text;
-      setContent((prev) => (prev ? `${prev}\n\n${text}` : text));
+      const lines = await parseTranscriptText(text, 'audio');
+      setAudioLines((prev) => [...prev, ...lines]);
+      setAudioPreview((prev) => (prev ? `${prev}\n\n${text}` : text));
       if (!title) setTitle(file.name.replace(/\.[^.]+$/, ''));
     } catch (err) {
       setError(`Lỗi transcribe: ${(err as Error).message}`);
@@ -652,14 +701,14 @@ function CreateMeetingModal({
   };
 
   const submit = async (runSummarize: boolean) => {
-    if (!content.trim()) {
-      setError('Vui lòng nhập hoặc upload nội dung transcript.');
+    if (!content.trim() && audioLines.length === 0) {
+      setError('Vui lòng nhập text hoặc upload audio để transcribe.');
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      const id = await createMeetingFromText(title, content);
+      const id = await createMeetingFromSources(title, content, audioLines);
       onCreated(id, runSummarize);
     } catch (e) {
       setError((e as Error).message);
@@ -730,8 +779,30 @@ function CreateMeetingModal({
               )}
             </div>
           )}
+          {audioLines.length > 0 && (
+            <div class="form-group">
+              <label class="form-label">
+                🎙️ Audio transcript ({audioLines.length} dòng) — sẽ lưu với nguồn "Audio"
+                <button
+                  type="button"
+                  class="action-btn action-btn-ghost"
+                  style={{ marginLeft: 12, padding: '2px 8px', fontSize: 11 }}
+                  onClick={() => { setAudioLines([]); setAudioPreview(''); }}
+                >
+                  ✕ Xoá
+                </button>
+              </label>
+              <textarea
+                class="form-textarea"
+                rows={6}
+                readOnly
+                style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12, background: '#f0fdf4', borderColor: '#a7f3d0' }}
+                value={audioPreview}
+              />
+            </div>
+          )}
           <div class="form-group">
-            <label class="form-label">Nội dung transcript</label>
+            <label class="form-label">📝 Text transcript — sẽ lưu với nguồn "Text"</label>
             <textarea
               class="form-textarea"
               rows={14}
@@ -832,6 +903,16 @@ function MeetingListItem({
             ⚠️ {meeting.pendingIssues.length}
           </span>
         )}
+        {meeting.audio?.downloadId != null && (
+          <span
+            class="meeting-list-tag meeting-list-tag-audio"
+            title={`Có bản ghi audio (${formatBytes(meeting.audio.sizeBytes)} · ${Math.round(
+              meeting.audio.durationMs / 1000,
+            )}s)`}
+          >
+            🎙️
+          </span>
+        )}
       </div>
     </div>
   );
@@ -850,16 +931,148 @@ function MeetingCard({
   onDelete: () => void;
   onRetry: () => void;
 }) {
-  const [tab, setTab] = useState<'summary' | 'transcript' | 'draft-email'>('summary');
+  const [tab, setTab] = useState<'summary' | 'transcript' | 'audio-transcript' | 'merged-transcript' | 'draft-email'>('summary');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'text' | 'audio'>('all');
   const [transcript, setTranscript] = useState<TranscriptRecord | null>(null);
+  const [audioTranscript, setAudioTranscript] = useState<TranscriptRecord | null>(null);
+  const [mergedTranscript, setMergedTranscript] = useState<TranscriptRecord | null>(null);
+  const [transcribing, setTranscribing] = useState(false);
+  const [transcribeMsg, setTranscribeMsg] = useState('');
+  const [merging, setMerging] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportingDoc, setExportingDoc] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioLoading, setAudioLoading] = useState(false);
+
+  const audioTranscriptId = `${meeting.id}:audio`;
+  const mergedTranscriptId = `${meeting.id}:merged`;
+
+  // Revoke blob URL on unmount / when audio changes to prevent leaks.
+  useEffect(() => {
+    return () => {
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+    };
+  }, [audioUrl]);
+
+  const togglePlayInline = async () => {
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+      return;
+    }
+    if (!meeting.audio?.hasInlineBlob) {
+      await openAudioInOS(meeting);
+      return;
+    }
+    setAudioLoading(true);
+    try {
+      const url = await loadAudioBlobUrl(meeting);
+      if (url) setAudioUrl(url);
+      else await openAudioInOS(meeting);
+    } finally {
+      setAudioLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (expanded && !transcript) {
       getTranscript(meeting.id).then((t) => setTranscript(t ?? null));
     }
   }, [expanded, meeting.id, transcript]);
+
+  useEffect(() => {
+    if (expanded && !audioTranscript) {
+      getTranscript(audioTranscriptId).then((t) => setAudioTranscript(t ?? null));
+    }
+  }, [expanded, audioTranscriptId, audioTranscript]);
+
+  useEffect(() => {
+    if (expanded && !mergedTranscript) {
+      getTranscript(mergedTranscriptId).then((t) => setMergedTranscript(t ?? null));
+    }
+  }, [expanded, mergedTranscriptId, mergedTranscript]);
+
+  const mergeTranscripts = async () => {
+    if (merging) return;
+    const captionLines = (transcript?.lines ?? []).filter(isLine);
+    const audioLines = (audioTranscript?.lines ?? []).filter(isLine);
+    if (captionLines.length === 0) {
+      alert('Chưa có caption transcript (live captions từ Meet) để merge.');
+      return;
+    }
+    if (audioLines.length === 0) {
+      alert('Chưa có audio transcript. Bấm "🎙️ Transcribe" trước.');
+      return;
+    }
+    setMerging(true);
+    try {
+      const settings = await getSettings();
+      const merged = await mergeTranscriptsWithAI(meeting, captionLines, audioLines, settings);
+      const record: TranscriptRecord = {
+        id: mergedTranscriptId,
+        lines: merged,
+        createdAt: Date.now(),
+      };
+      await saveTranscript(record);
+      setMergedTranscript(record);
+      setTab('merged-transcript');
+    } catch (e) {
+      console.error('[Merge transcripts]', e);
+      alert(`Merge lỗi: ${(e as Error).message}`);
+    } finally {
+      setMerging(false);
+    }
+  };
+
+  const transcribeAudio = async () => {
+    if (transcribing) return;
+    const rec = await getAudioBlob(meeting.id);
+    if (!rec) {
+      alert('Không tìm thấy file audio cho meeting này.');
+      return;
+    }
+    const settings = await getSettings();
+    const cfg = settings.transcription;
+    if (!cfg?.endpoint || !cfg?.apiKey) {
+      alert('Chưa cấu hình Transcription. Vào Settings → Transcription để cấu hình endpoint + API key.');
+      return;
+    }
+    setTranscribing(true);
+    setTranscribeMsg('Đang chuẩn bị…');
+    try {
+      const ext = rec.mimeType.includes('mpeg') ? 'mp3'
+        : rec.mimeType.includes('wav') ? 'wav'
+        : rec.mimeType.includes('webm') ? 'webm'
+        : rec.mimeType.includes('ogg') ? 'ogg' : 'audio';
+      const file = new File([rec.blob], `${meeting.id}.${ext}`, { type: rec.mimeType });
+      const onProgress = (p: TranscribeProgress) => {
+        const pct = typeof p.percent === 'number' ? ` (${Math.round(p.percent)}%)` : '';
+        setTranscribeMsg(`${p.message}${pct}`);
+      };
+      const result = await transcribeFile(file, cfg, onProgress);
+      const lines: TranscriptLine[] = result.segments.map((s, i) => ({
+        speaker: s.speaker,
+        text: s.text,
+        ts: meeting.createdAt + Math.max(0, s.startSec) * 1000,
+        hash: `audio:${i}:${s.startSec}:${s.text.slice(0, 32)}`,
+        source: 'audio' as TranscriptSource,
+      }));
+      const record: TranscriptRecord = {
+        id: audioTranscriptId,
+        lines,
+        createdAt: Date.now(),
+      };
+      await saveTranscript(record);
+      setAudioTranscript(record);
+      setTab('audio-transcript');
+    } catch (e) {
+      console.error('[Transcribe audio]', e);
+      alert(`Transcribe lỗi: ${(e as Error).message}`);
+    } finally {
+      setTranscribing(false);
+      setTranscribeMsg('');
+    }
+  };
 
   const badge = STATUS_BADGE[meeting.summaryStatus];
   const lineCount = transcript?.lines.filter(isLine).length ?? 0;
@@ -928,18 +1141,12 @@ function MeetingCard({
     >
       <div class="meeting-sticky-head">
       <div class="meeting-card-header">
-        <div class="meeting-left">
+        <div class="meeting-header-row">
           <div class="meeting-title-row">
             <span class="meeting-title">{meeting.title}</span>
             <span class={`status-badge ${badge.cls}`}>{badge.label}</span>
             {meeting.calendarEventId && <span class="cal-badge">📅 Calendar synced</span>}
           </div>
-          <div class="meeting-meta">
-            <span>📅 {fmtDate(meeting.createdAt)}</span>
-            <span>🕐 {fmtTime(meeting.createdAt)}</span>
-            <span>⏱️ {Math.round(meeting.duration / 60)} phút</span>
-          </div>
-        </div>
         <div class="meeting-right" onClick={(e) => e.stopPropagation()}>
           <button
             class={`action-btn action-btn-primary ${
@@ -979,7 +1186,66 @@ function MeetingCard({
             🗑️
           </button>
         </div>
+        </div>
+        <div class="meeting-meta">
+          <span>📅 {fmtDate(meeting.createdAt)}</span>
+          <span>🕐 {fmtTime(meeting.createdAt)}</span>
+          <span>⏱️ {Math.round(meeting.duration / 60)} phút</span>
+          {meeting.audio?.downloadId != null && (
+            <button
+              class="action-btn action-btn-ghost action-btn-audio meeting-meta-audio"
+              title={
+                meeting.audio.hasInlineBlob
+                  ? `Phát audio inline (${formatBytes(meeting.audio.sizeBytes)})`
+                  : `Mở audio bằng app hệ thống (${formatBytes(meeting.audio.sizeBytes)})`
+              }
+              onClick={(e) => {
+                e.stopPropagation();
+                togglePlayInline();
+              }}
+              disabled={audioLoading}
+            >
+              {audioLoading ? '⏳' : audioUrl ? '⏹️ Ẩn' : '▶️ Audio'}
+            </button>
+          )}
+          {meeting.audio?.hasInlineBlob && (
+            <button
+              class="action-btn action-btn-ghost action-btn-audio meeting-meta-audio"
+              title={
+                audioTranscript
+                  ? 'Transcribe lại audio (ghi đè bản hiện tại)'
+                  : 'Chuyển audio thành văn bản (Speech-to-Text)'
+              }
+              onClick={(e) => {
+                e.stopPropagation();
+                transcribeAudio();
+              }}
+              disabled={transcribing}
+            >
+              {transcribing ? `⏳ ${transcribeMsg || 'Đang transcribe…'}` : audioTranscript ? '♻️ Transcribe lại' : '🎙️ Transcribe'}
+            </button>
+          )}
+          {audioTranscript && (transcript?.lines.filter(isLine).length ?? 0) > 0 && (
+            <button
+              class="action-btn action-btn-ghost action-btn-audio meeting-meta-audio"
+              title="Dùng AI ghép caption (tên người nói) với audio transcript (text chính xác)"
+              onClick={(e) => {
+                e.stopPropagation();
+                mergeTranscripts();
+              }}
+              disabled={merging}
+            >
+              {merging ? '⏳ Đang merge…' : mergedTranscript ? '♻️ Merge lại (AI)' : '🔀 Merge (AI)'}
+            </button>
+          )}
+        </div>
       </div>
+
+      {audioUrl && (
+        <div class="meeting-audio-player">
+          <audio src={audioUrl} controls preload="metadata" style={{ width: '100%' }} />
+        </div>
+      )}
 
       {expanded && (
         <div class="meeting-tabs">
@@ -995,6 +1261,22 @@ function MeetingCard({
           >
             💬 Transcript ({lineCount})
           </div>
+          {(meeting.audio?.hasInlineBlob || audioTranscript) && (
+            <div
+              class={`meeting-tab ${tab === 'audio-transcript' ? 'active' : ''}`}
+              onClick={() => setTab('audio-transcript')}
+            >
+              🎙️ Audio Transcript ({audioTranscript?.lines.filter(isLine).length ?? 0})
+            </div>
+          )}
+          {mergedTranscript && (
+            <div
+              class={`meeting-tab ${tab === 'merged-transcript' ? 'active' : ''}`}
+              onClick={() => setTab('merged-transcript')}
+            >
+              🔀 Merged ({mergedTranscript.lines.filter(isLine).length})
+            </div>
+          )}
           <div
             class={`meeting-tab ${tab === 'draft-email' ? 'active' : ''}`}
             onClick={() => setTab('draft-email')}
@@ -1096,6 +1378,64 @@ function MeetingCard({
                 </button>
               </div>
             </div>
+          ) : tab === 'merged-transcript' ? (
+            <div class="tab-content active">
+              {merging && (
+                <div class="summary-section" style={{ background: '#eef6ff', border: '1px solid #b6dafd', padding: 12, borderRadius: 6, marginBottom: 12 }}>
+                  <span class="spinner" /> <b>AI đang merge caption + audio…</b>
+                </div>
+              )}
+              {mergedTranscript && mergedTranscript.lines.length > 0 ? (
+                <div class="transcript-full">
+                  {mergedTranscript.lines.map((entry, i) =>
+                    isLine(entry) ? (
+                      <div class="transcript-line transcript-source-audio" key={i}>
+                        <div class="transcript-header">
+                          <span class="speaker-chip">{entry.speaker}</span>
+                          <span class="transcript-time">{fmtTime(entry.ts)}</span>
+                          <span class="source-badge source-badge-audio">🔀 Merged</span>
+                        </div>
+                        <div class="transcript-text">{entry.text}</div>
+                      </div>
+                    ) : null,
+                  )}
+                </div>
+              ) : (
+                <p style={{ color: 'var(--text-muted)', padding: 20 }}>
+                  Chưa có merged transcript. Bấm nút "🔀 Merge (AI)" ở trên (cần đã có cả Caption transcript và Audio transcript).
+                </p>
+              )}
+            </div>
+          ) : tab === 'audio-transcript' ? (
+            <div class="tab-content active">
+              {transcribing && (
+                <div class="summary-section" style={{ background: '#eef6ff', border: '1px solid #b6dafd', padding: 12, borderRadius: 6, marginBottom: 12 }}>
+                  <span class="spinner" /> <b>Đang transcribe audio…</b> {transcribeMsg}
+                </div>
+              )}
+              {audioTranscript && audioTranscript.lines.length > 0 ? (
+                <div class="transcript-full">
+                  {audioTranscript.lines.map((entry, i) =>
+                    isLine(entry) ? (
+                      <div class="transcript-line transcript-source-audio" key={i}>
+                        <div class="transcript-header">
+                          <span class="speaker-chip">{entry.speaker}</span>
+                          <span class="transcript-time">{fmtTime(entry.ts)}</span>
+                          <span class="source-badge source-badge-audio">🎙️ Audio</span>
+                        </div>
+                        <div class="transcript-text">{entry.text}</div>
+                      </div>
+                    ) : null,
+                  )}
+                </div>
+              ) : (
+                <p style={{ color: 'var(--text-muted)', padding: 20 }}>
+                  {meeting.audio?.hasInlineBlob
+                    ? 'Chưa có audio transcript. Bấm nút "🎙️ Transcribe" ở trên để chuyển audio thành văn bản.'
+                    : 'Meeting này không có file audio inline để transcribe.'}
+                </p>
+              )}
+            </div>
           ) : tab === 'draft-email' ? (
             <div class="tab-content active">
               {meeting.draftEmail && (meeting.draftEmail.subject || meeting.draftEmail.body) ? (
@@ -1143,23 +1483,88 @@ function MeetingCard({
             </div>
           ) : (
             <div class="tab-content active">
-              <div class="transcript-full">
-                {transcript?.lines.map((entry, i) =>
-                  isLine(entry) ? (
-                    <div class="transcript-line" key={i}>
-                      <div class="transcript-header">
-                        <span class="speaker-chip">{entry.speaker}</span>
-                        <span class="transcript-time">{fmtTime(entry.ts)}</span>
+              {(() => {
+                const allLines = transcript?.lines ?? [];
+                const sources = new Set<TranscriptSource>();
+                for (const e of allLines) {
+                  if (isLine(e)) sources.add(e.source ?? 'text');
+                }
+                const multi = sources.size > 1;
+                const counts = { text: 0, audio: 0 };
+                for (const e of allLines) {
+                  if (isLine(e)) counts[e.source ?? 'text']++;
+                }
+                const visible = allLines.filter((e) => {
+                  if (!isLine(e)) return sourceFilter === 'all';
+                  if (sourceFilter === 'all') return true;
+                  return (e.source ?? 'text') === sourceFilter;
+                });
+                return (
+                  <>
+                    {multi && (
+                      <div class="transcript-source-filter">
+                        <button
+                          class={`filter-chip ${sourceFilter === 'all' ? 'active' : ''}`}
+                          onClick={() => setSourceFilter('all')}
+                        >
+                          Tất cả ({counts.text + counts.audio})
+                        </button>
+                        <button
+                          class={`filter-chip ${sourceFilter === 'text' ? 'active' : ''}`}
+                          onClick={() => setSourceFilter('text')}
+                        >
+                          📝 Text ({counts.text})
+                        </button>
+                        <button
+                          class={`filter-chip ${sourceFilter === 'audio' ? 'active' : ''}`}
+                          onClick={() => setSourceFilter('audio')}
+                        >
+                          🎙️ Audio ({counts.audio})
+                        </button>
                       </div>
-                      <div class="transcript-text">{entry.text}</div>
+                    )}
+                    <div class="transcript-full">
+                      {transcript ? (
+                        visible.length === 0 ? (
+                          <p style={{ color: 'var(--text-muted)' }}>
+                            Không có dòng nào khớp bộ lọc.
+                          </p>
+                        ) : (
+                          visible.map((entry, i) =>
+                            isLine(entry) ? (
+                              <div
+                                class={`transcript-line transcript-source-${entry.source ?? 'text'}`}
+                                key={i}
+                              >
+                                <div class="transcript-header">
+                                  <span class="speaker-chip">{entry.speaker}</span>
+                                  <span class="transcript-time">{fmtTime(entry.ts)}</span>
+                                  {multi && (
+                                    <span class={`source-badge source-badge-${entry.source ?? 'text'}`}>
+                                      {(entry.source ?? 'text') === 'audio' ? '🎙️ Audio' : '📝 Text'}
+                                    </span>
+                                  )}
+                                </div>
+                                <div class="transcript-text">{entry.text}</div>
+                              </div>
+                            ) : (
+                              <div
+                                class="transcript-line"
+                                key={i}
+                                style={{ opacity: 0.6, fontStyle: 'italic' }}
+                              >
+                                ⏸ Capture đã tạm dừng: {fmtTime(entry.from)} → {fmtTime(entry.to)}
+                              </div>
+                            ),
+                          )
+                        )
+                      ) : (
+                        <p style={{ color: 'var(--text-muted)' }}>Đang tải transcript…</p>
+                      )}
                     </div>
-                  ) : (
-                    <div class="transcript-line" key={i} style={{ opacity: 0.6, fontStyle: 'italic' }}>
-                      ⏸ Capture đã tạm dừng: {fmtTime(entry.from)} → {fmtTime(entry.to)}
-                    </div>
-                  ),
-                ) ?? <p style={{ color: 'var(--text-muted)' }}>Đang tải transcript…</p>}
-              </div>
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>

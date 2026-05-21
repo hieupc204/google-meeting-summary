@@ -16,6 +16,12 @@ export interface SummaryResult {
   pendingIssues: string[];
   draftEmail?: DraftEmail;
   keywords?: string[];
+  meetingDate?: string;
+  meetingTime?: string;
+  meetingFormat?: string;
+  participants?: string[];
+  chair?: string;
+  objective?: string;
 }
 
 function isLine(e: TranscriptEntry): e is TranscriptLine {
@@ -199,7 +205,45 @@ function asStringArray(v: unknown): string[] {
   return [];
 }
 
-function normalizeResult(parsed: unknown): SummaryResult {
+const VI_WEEKDAYS = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+
+function pad2(n: number): string {
+  return n < 10 ? `0${n}` : String(n);
+}
+
+function formatMeetingDate(ts: number): string {
+  const d = new Date(ts);
+  return `${VI_WEEKDAYS[d.getDay()]}, ${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+function formatMeetingTime(startTs: number, durationSec: number): string {
+  const start = new Date(startTs);
+  const end = new Date(startTs + Math.max(0, durationSec) * 1000);
+  const fmt = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const minutes = Math.max(1, Math.round(durationSec / 60));
+  return `${fmt(start)} - ${fmt(end)} (${minutes} phút)`;
+}
+
+function applyMeetingTimeDefaults(parsed: unknown, meeting?: MeetingRecord): void {
+  if (!meeting || !parsed || typeof parsed !== 'object') return;
+  const info = findByKey(parsed, [
+    'meetingInfo',
+    'thong_tin_chung',
+    'thong_tin_cuoc_hop',
+    'meeting_info',
+  ]);
+  if (!info || typeof info !== 'object' || Array.isArray(info)) return;
+  const o = info as Record<string, unknown>;
+  const unknownRe = /^(không xác định|chưa xác định|n\/a|unknown|-)?$/i;
+  const dateVal = asString(o.ngay_hop ?? o.date ?? '').trim();
+  if (unknownRe.test(dateVal)) o.ngay_hop = formatMeetingDate(meeting.createdAt);
+  const timeVal = asString(o.thoi_gian ?? o.time ?? '').trim();
+  if (unknownRe.test(timeVal))
+    o.thoi_gian = formatMeetingTime(meeting.createdAt, meeting.duration);
+}
+
+function normalizeResult(parsed: unknown, meeting?: MeetingRecord): SummaryResult {
+  applyMeetingTimeDefaults(parsed, meeting);
   // Note: executive_summary is intentionally NOT shown at the top — the
   // discussion topics / decisions / action items sections below cover the
   // same ground in a more structured way. We only fall back to it later
@@ -348,9 +392,28 @@ function normalizeResult(parsed: unknown): SummaryResult {
           'summary',
           'overview',
         ]);
+        const participantKeys = new Set([
+          'thanh_phan_tham_gia',
+          'participants',
+          'attendees',
+          'nguoi_tham_du',
+          'thanh_vien',
+        ]);
+        const renderValue = (k: string, val: unknown): string => {
+          if (participantKeys.has(k.toLowerCase())) {
+            const names = Array.isArray(val)
+              ? val.map((x) => asString(x).trim()).filter(Boolean)
+              : asString(val)
+                  .split(/\s*[,;\n]\s*/)
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+            if (names.length) return names.map((n) => `{{TAG:${n}}}`).join(' ');
+          }
+          return asString(val).replace(/\s*\n\s*/g, ', ');
+        };
         const lines = Object.entries(o)
           .filter(([k, val]) => !skipKeys.has(k.toLowerCase()) && val != null && asString(val).trim())
-          .map(([k, val]) => `- **${labelKey(k)}**: ${asString(val)}`)
+          .map(([k, val]) => `- **${labelKey(k)}**: ${renderValue(k, val)}`)
           .join('\n');
         if (lines.trim()) extras.push(`## ${sec.title}\n${lines}`);
       }
@@ -485,7 +548,61 @@ function normalizeResult(parsed: unknown): SummaryResult {
     };
   }
 
-  return { summary, actionItems, decisions, pendingIssues, draftEmail, keywords };
+  // Extract meetingInfo fields into typed properties so the UI can render them
+  // without re-parsing the markdown body. Stored as separate DB columns.
+  const meetingInfo = findByKey(parsed, [
+    'meetingInfo',
+    'thong_tin_chung',
+    'thong_tin_cuoc_hop',
+    'meeting_info',
+  ]);
+  let meetingDate: string | undefined;
+  let meetingTime: string | undefined;
+  let meetingFormat: string | undefined;
+  let participants: string[] | undefined;
+  let chair: string | undefined;
+  let objective: string | undefined;
+  if (meetingInfo && typeof meetingInfo === 'object' && !Array.isArray(meetingInfo)) {
+    const o = meetingInfo as Record<string, unknown>;
+    const pickStr = (...keys: string[]): string | undefined => {
+      for (const k of keys) {
+        const v = asString(o[k] ?? '').trim();
+        if (v) return v;
+      }
+      return undefined;
+    };
+    meetingDate = pickStr('ngay_hop', 'date', 'meeting_date');
+    meetingTime = pickStr('thoi_gian', 'time', 'meeting_time');
+    meetingFormat = pickStr('hinh_thuc', 'format', 'meeting_format');
+    chair = pickStr('nguoi_chu_tri', 'chair', 'host');
+    objective = pickStr('muc_tieu_cuoc_hop', 'muc_tieu', 'objective', 'goal');
+    const rawParts =
+      o.thanh_phan_tham_gia ?? o.participants ?? o.attendees ?? o.nguoi_tham_du ?? o.thanh_vien;
+    if (Array.isArray(rawParts)) {
+      participants = rawParts.map((x) => asString(x).trim()).filter(Boolean);
+    } else if (typeof rawParts === 'string') {
+      participants = rawParts
+        .split(/\s*[,;\n]\s*/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+    if (participants && participants.length === 0) participants = undefined;
+  }
+
+  return {
+    summary,
+    actionItems,
+    decisions,
+    pendingIssues,
+    draftEmail,
+    keywords,
+    meetingDate,
+    meetingTime,
+    meetingFormat,
+    participants,
+    chair,
+    objective,
+  };
 }
 
 // Threshold for chunking. ~60k chars ≈ 15k tokens — within most context windows
@@ -585,6 +702,118 @@ async function callChatAPI(
   return parseChatCompletion(raw);
 }
 
+// Merge the live-caption transcript (accurate speakers, possibly noisy text)
+// with the audio transcript (accurate text, heuristic/unknown speakers) into
+// a single timeline. The AI is asked to use caption speakers as the source of
+// truth and audio text as the source of truth, aligning by timestamp.
+export async function mergeTranscriptsWithAI(
+  meeting: MeetingRecord,
+  captionLines: TranscriptLine[],
+  audioLines: TranscriptLine[],
+  settings: UserSettings,
+): Promise<TranscriptLine[]> {
+  if (!settings.ai.endpoint) throw new Error('Chưa cấu hình AI endpoint');
+  if (!settings.ai.apiKey) throw new Error('Chưa cấu hình API key');
+  if (audioLines.length === 0) throw new Error('Không có audio transcript để merge');
+  if (captionLines.length === 0) throw new Error('Không có caption transcript để merge');
+
+  const meetingStart = meeting.createdAt;
+  const fmtRelative = (ts: number): string => {
+    const sec = Math.max(0, Math.round((ts - meetingStart) / 1000));
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  };
+
+  const captionPayload = captionLines.map((l, i) => ({
+    i,
+    t: fmtRelative(l.ts),
+    speaker: l.speaker,
+    text: l.text,
+  }));
+  const audioPayload = audioLines.map((l, i) => ({
+    i,
+    t: fmtRelative(l.ts),
+    text: l.text,
+  }));
+
+  const system = `Bạn là trợ lý xử lý transcript cuộc họp. Người dùng cung cấp 2 nguồn:
+1) "captions": transcript live từ Google Meet — TÊN NGƯỜI NÓI CHÍNH XÁC, nhưng text có thể thiếu/sai chính tả.
+2) "audio": transcript do Whisper tạo từ file ghi âm — TEXT CHÍNH XÁC HƠN, nhưng KHÔNG biết ai nói (speaker chỉ là nhãn giả).
+
+Nhiệm vụ: hợp nhất thành 1 transcript duy nhất, MỖI DÒNG dùng:
+- speaker: lấy từ captions (match theo timestamp gần nhất + nội dung tương đồng).
+- text: ưu tiên text từ audio (chính xác hơn). Nếu audio không có đoạn tương ứng, fallback text từ caption.
+- t: timestamp (định dạng "M:SS" tính từ đầu meeting).
+
+QUY TẮC:
+- Sắp xếp theo thứ tự thời gian tăng dần.
+- Không bịa nội dung. Không thêm câu không có trong cả 2 nguồn.
+- Nếu 1 đoạn audio rõ ràng thuộc về 1 speaker (dựa trên overlap timestamp với caption), gán đúng tên đó.
+- Nếu không thể xác định speaker với độ tin cậy hợp lý, để "Không rõ".
+- Gộp các câu ngắn liên tiếp của cùng 1 speaker thành 1 dòng nếu hợp lý.
+
+OUTPUT: TRẢ VỀ DUY NHẤT 1 JSON ARRAY, KHÔNG kèm markdown/giải thích:
+[
+  { "speaker": "Tên A", "text": "...", "t": "0:12" },
+  ...
+]`;
+
+  const user = `MEETING: ${meeting.title}
+Bắt đầu: ${new Date(meetingStart).toISOString()}
+
+CAPTIONS (${captionLines.length} dòng):
+${JSON.stringify(captionPayload, null, 0)}
+
+AUDIO (${audioLines.length} dòng):
+${JSON.stringify(audioPayload, null, 0)}
+
+Hãy trả về JSON array transcript đã merge.`;
+
+  const raw = await callChatAPI(
+    [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ],
+    settings,
+  );
+
+  // Parse: accept either a top-level array or an object wrapping one.
+  const parsed = extractJson(raw);
+  const arr: unknown[] = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray((parsed as { transcript?: unknown[] })?.transcript)
+      ? ((parsed as { transcript: unknown[] }).transcript)
+      : Array.isArray((parsed as { lines?: unknown[] })?.lines)
+        ? ((parsed as { lines: unknown[] }).lines)
+        : [];
+  if (!arr.length) throw new Error('AI không trả về danh sách hợp lệ');
+
+  const parseRelative = (t: string): number => {
+    const m = String(t).match(/(\d+):(\d{1,2})/);
+    if (!m) return meetingStart;
+    return meetingStart + (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) * 1000;
+  };
+
+  const out: TranscriptLine[] = [];
+  for (let i = 0; i < arr.length; i++) {
+    const o = arr[i] as Record<string, unknown>;
+    const speaker = asString(o.speaker ?? o.name ?? 'Không rõ').trim() || 'Không rõ';
+    const text = asString(o.text ?? o.content ?? '').trim();
+    if (!text) continue;
+    const t = asString(o.t ?? o.time ?? o.timestamp ?? '0:00');
+    out.push({
+      speaker,
+      text,
+      ts: parseRelative(t),
+      hash: `merged:${i}:${text.slice(0, 32)}`,
+      source: 'audio',
+    });
+  }
+  if (!out.length) throw new Error('AI trả về kết quả rỗng');
+  return out;
+}
+
 export async function summarizeMeeting(
   meeting: MeetingRecord,
   transcript: TranscriptRecord | null | undefined,
@@ -657,7 +886,7 @@ async function runFinalSummarize(
   const content = await callChatAPI(messages, settings);
   console.log('[Meet Assistant] AI content:', content);
   if (!content) throw new Error('AI trả về rỗng');
-  const parsed = normalizeResult(extractJson(content));
+  const parsed = normalizeResult(extractJson(content), meeting);
   console.log('[Meet Assistant] Parsed result:', parsed);
   return parsed;
 }

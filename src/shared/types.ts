@@ -58,6 +58,8 @@ export interface UserSettings {
   consentAccepted: boolean;
 }
 
+export type TranscriptSource = 'text' | 'audio';
+
 export interface TranscriptLine {
   speaker: string;
   text: string;
@@ -67,6 +69,9 @@ export interface TranscriptLine {
   // is upserted (replace-in-place) instead of appended — so live caption
   // updates don't pile up duplicates.
   blockId?: string;
+  // Where the line came from. Defaults to 'text' when missing (legacy lines /
+  // live captions / manual paste).
+  source?: TranscriptSource;
 }
 
 export interface TranscriptGap {
@@ -105,12 +110,39 @@ export interface MeetingRecord {
   pendingIssues: string[];
   draftEmail?: DraftEmail;
   keywords?: string[];
+  meetingDate?: string;
+  meetingTime?: string;
+  meetingFormat?: string;
+  participants?: string[];
+  chair?: string;
+  objective?: string;
   summaryStatus: SummaryStatus;
   summaryError?: string;
   calendarEventId?: string;
   duration: number; // seconds
   createdAt: number;
   updatedAt: number;
+  audio?: AudioRecord;
+}
+
+export interface AudioRecord {
+  storage: 'fs' | 'downloads';
+  filename: string;
+  downloadId?: number;
+  startedAt: number;
+  durationMs: number;
+  sizeBytes: number;
+  mimeType: string;
+  // True when the blob is also persisted in IndexedDB (STORE_AUDIOS) so
+  // History can play it inline without depending on chrome.downloads.
+  hasInlineBlob?: boolean;
+}
+
+export interface RecordingStatus {
+  state: 'idle' | 'recording' | 'finalizing';
+  meetingId?: string;
+  startedAt?: number;
+  error?: string;
 }
 
 // ---- message protocol (content/popup <-> background) ----
@@ -127,7 +159,14 @@ export type Message =
   | { type: 'LIST_MEETINGS'; limit?: number }
   | { type: 'DELETE_MEETING'; meetingId: string }
   | { type: 'TOGGLE_CC'; enable: boolean }
-  | { type: 'MAIN_WORLD_CLICK_CC' };
+  | { type: 'MAIN_WORLD_CLICK_CC' }
+  | { type: 'RECORDING_START'; meetingId: string; tabId: number; includeMic: boolean }
+  | { type: 'RECORDING_STOP' }
+  | { type: 'RECORDING_STATUS' }
+  // Offscreen ↔ SW
+  | { type: 'OFFSCREEN_READY' }
+  | { type: 'OFFSCREEN_DONE'; blobUrl: string; sizeBytes: number; durationMs: number; mimeType: string }
+  | { type: 'OFFSCREEN_ERROR'; error: string };
 
 export interface CaptureStatus {
   meetingId?: string;

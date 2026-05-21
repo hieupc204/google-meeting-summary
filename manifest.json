@@ -19,14 +19,15 @@
       "run_at": "document_idle"
     }
   ],
-  "permissions": ["storage", "identity", "tabs", "activeTab", "offscreen", "alarms", "scripting"],
+  "permissions": ["storage", "identity", "tabs", "activeTab", "offscreen", "alarms", "scripting", "tabCapture", "downloads", "downloads.open"],
   "host_permissions": [
     "https://meet.google.com/*",
-    "https://www.googleapis.com/*"
+    "https://www.googleapis.com/*",
+    "<all_urls>"
   ],
   "web_accessible_resources": [
     {
-      "resources": ["src/history/index.html", "icons/*"],
+      "resources": ["src/history/index.html", "src/offscreen/index.html", "icons/*"],
       "matches": ["<all_urls>"]
     }
   ],

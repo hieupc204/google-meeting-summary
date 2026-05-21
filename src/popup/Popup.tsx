@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import type { CaptureStatus, Message } from '@/shared/types';
+import type { CaptureStatus, Message, RecordingStatus } from '@/shared/types';
 import {
   getHideMeetCC,
   getPanelMode,
@@ -37,6 +37,8 @@ async function sendMsg<T = unknown>(msg: Message): Promise<T> {
 
 export function Popup() {
   const [status, setStatus] = useState<CaptureStatus>({ state: 'idle', lineCount: 0 });
+  const [recording, setRecording] = useState<RecordingStatus>({ state: 'idle' });
+  const [meetTabId, setMeetTabId] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
   const [panelMode, setPanelModeState] = useState<PanelMode>('hidden');
   const [hideMeetCC, setHideMeetCCState] = useState(false);
@@ -47,9 +49,11 @@ export function Popup() {
   useEffect(() => {
     const detect = () => {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        const url = tabs[0]?.url ?? '';
+        const tab = tabs[0];
+        const url = tab?.url ?? '';
         const m = url.match(MEET_URL_RE);
         setMeetTabMeetingId(m?.[1] ?? null);
+        setMeetTabId(m && tab?.id != null ? tab.id : null);
       });
     };
     detect();
@@ -84,8 +88,12 @@ export function Popup() {
 
   useEffect(() => {
     const tick = async () => {
-      const s = await sendMsg<CaptureStatus>({ type: 'GET_STATUS' });
+      const [s, r] = await Promise.all([
+        sendMsg<CaptureStatus>({ type: 'GET_STATUS' }),
+        sendMsg<RecordingStatus>({ type: 'RECORDING_STATUS' }),
+      ]);
       setStatus(s);
+      setRecording(r);
       setNow(Date.now());
     };
     tick();
@@ -118,6 +126,44 @@ export function Popup() {
     const s = await sendMsg<CaptureStatus>({ type: 'GET_STATUS' });
     setStatus(s);
   };
+  const onAudioStart = async () => {
+    if (!status.meetingId || !meetTabId) return;
+    // Trigger mic permission prompt under a real user gesture (popup click).
+    // Offscreen documents can't show the prompt themselves on chrome-extension
+    // origins, so we ask here, stop the local stream, then start the actual
+    // recording in the offscreen doc — the granted permission persists for
+    // the extension origin.
+    let includeMic = true;
+    try {
+      const probe = await navigator.mediaDevices.getUserMedia({ audio: true });
+      probe.getTracks().forEach((t) => t.stop());
+    } catch (e) {
+      includeMic = false;
+      const proceed = confirm(
+        `Không thể cấp quyền micro (${(e as Error).message}).\n\nTiếp tục ghi chỉ âm thanh tab?`,
+      );
+      if (!proceed) return;
+    }
+    const r = await sendMsg<{ ok: boolean; error?: string }>({
+      type: 'RECORDING_START',
+      meetingId: status.meetingId,
+      tabId: meetTabId,
+      includeMic,
+    });
+    if (!r?.ok) alert(`Không thể bắt đầu ghi âm: ${r?.error ?? 'unknown'}`);
+    const rec = await sendMsg<RecordingStatus>({ type: 'RECORDING_STATUS' });
+    setRecording(rec);
+  };
+  const onAudioStop = async () => {
+    await sendMsg({ type: 'RECORDING_STOP' });
+    const rec = await sendMsg<RecordingStatus>({ type: 'RECORDING_STATUS' });
+    setRecording(rec);
+  };
+  const recElapsed = useMemo(() => {
+    if (recording.state !== 'recording' || !recording.startedAt) return 0;
+    return Math.floor((now - recording.startedAt) / 1000);
+  }, [now, recording]);
+
   const onStartRecording = async () => {
     if (!meetTabMeetingId) return;
     const title = `Meeting ${new Date().toLocaleString('vi-VN')}`;
@@ -201,6 +247,33 @@ export function Popup() {
           </button>
         </div>
       ) : null}
+
+      {status.meetingId && (
+        <div class="controls" style={{ marginTop: 8 }}>
+          {recording.state === 'recording' ? (
+            <button
+              class="btn btn-stop"
+              style={{ gridColumn: '1 / -1' }}
+              onClick={onAudioStop}
+            >
+              ⏹ Dừng ghi âm · {formatHMS(recElapsed)}
+            </button>
+          ) : recording.state === 'finalizing' ? (
+            <button class="btn btn-pause" style={{ gridColumn: '1 / -1' }} disabled>
+              💾 Đang lưu file…
+            </button>
+          ) : (
+            <button
+              class="btn btn-resume"
+              style={{ gridColumn: '1 / -1' }}
+              onClick={onAudioStart}
+              disabled={!meetTabId}
+            >
+              🎙️ Bắt đầu ghi âm (tab + mic)
+            </button>
+          )}
+        </div>
+      )}
 
       <div class="summarize-wrap">
         {status.meetingId && (

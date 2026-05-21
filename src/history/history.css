@@ -74,7 +74,14 @@ body {
 }
 
 /* ── MAIN ── */
-.main { margin-left: 240px; flex: 1; padding: 32px 40px; }
+.main {
+  margin-left: 240px; flex: 1; padding: 32px 40px;
+  height: 100vh; box-sizing: border-box;
+  display: flex; flex-direction: column;
+}
+.main > .page-header,
+.main > .toolbar { flex: 0 0 auto; }
+.main > .meeting-split { flex: 1 1 auto; min-height: 0; }
 
 .page-header {
   display: flex; align-items: flex-start;
@@ -131,10 +138,7 @@ body {
   display: flex;
   gap: 16px;
   align-items: stretch;
-  /* Fill remaining viewport. Outer .main has padding 32px 40px. Stats grid +
-     toolbar above take some space, so subtract roughly. We use min-height to
-     guarantee at least a usable area, and let inner panes scroll. */
-  height: calc(100vh - 360px);
+  /* Height is driven by parent flex layout in .main. */
   min-height: 480px;
 }
 .meeting-listcol {
@@ -231,9 +235,12 @@ body {
 .meeting-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); border-color: #CBD5E1; }
 .meeting-card-header {
   padding: 16px 20px;
-  display: flex; align-items: flex-start; justify-content: space-between;
+  display: flex; flex-direction: column; gap: 10px;
 }
-.meeting-left { flex: 1; }
+.meeting-header-row {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+}
+.meeting-left { flex: 1; min-width: 0; }
 .meeting-title-row {
   display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
 }
@@ -266,6 +273,26 @@ body {
   border: 1px solid var(--border);
 }
 .action-btn-ghost:hover { color: var(--text); }
+.action-btn-audio {
+  background: #ECFDF5;
+  color: #047857;
+  border: 1px solid #A7F3D0;
+}
+.action-btn-audio:hover { background: #D1FAE5; color: #065F46; }
+.meeting-meta-audio { margin-left: auto; }
+
+.meeting-list-tag-audio {
+  background: #ECFDF5;
+  color: #047857;
+  border: 1px solid #A7F3D0;
+}
+
+.meeting-audio-player {
+  padding: 12px 20px;
+  background: #F9FAFB;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
 
 .export-overlay {
   position: fixed; inset: 0;
@@ -414,7 +441,7 @@ body {
 .md-body p { margin: 0 0 10px; }
 .md-body p:last-child { margin-bottom: 0; }
 .md-body .md-h1 {
-  margin: 0 0 14px;
+  margin: 0px 0 0px;
   padding-bottom: 10px;
   font-size: 18px; font-weight: 700;
   color: var(--text);
@@ -455,7 +482,6 @@ body {
 .md-body strong {
   color: var(--text);
   font-weight: 600;
-  background: linear-gradient(transparent 60%, var(--primary-light) 60%);
   padding: 0 2px;
 }
 .md-body em { color: var(--text-secondary); }
@@ -465,6 +491,7 @@ body {
 }
 .md-tag {
   display: inline-block;
+  margin: 2px 2px;
   padding: 4px 10px;
   background: var(--primary-light);
   color: var(--primary);
@@ -569,7 +596,7 @@ body {
 .summary-section { margin-bottom: 20px; }
 .summary-heading {
   font-size: 12px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 10px;
+  letter-spacing: 0.5px; color: var(--text-secondary);
   display: flex; align-items: center; gap: 6px;
 }
 .summary-text { font-size: 13px; line-height: 1.7; color: var(--text); }
@@ -610,6 +637,28 @@ body {
 }
 .transcript-time { font-size: 11px; color: var(--text-muted); }
 .transcript-text { color: var(--text); }
+
+.transcript-source-filter {
+  display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;
+}
+.filter-chip {
+  padding: 5px 12px; border-radius: 999px; font-size: 12px;
+  border: 1px solid var(--border); background: white; color: var(--text-secondary);
+  cursor: pointer; transition: all 0.15s;
+}
+.filter-chip:hover { border-color: var(--primary); color: var(--primary); }
+.filter-chip.active {
+  border-color: var(--primary); background: var(--primary-light); color: var(--primary);
+  font-weight: 600;
+}
+.source-badge {
+  font-size: 10px; padding: 1px 7px; border-radius: 999px;
+  font-weight: 500; margin-left: 4px;
+}
+.source-badge-text { background: var(--primary-light); color: var(--primary); }
+.source-badge-audio { background: #ECFDF5; color: #047857; }
+.transcript-source-audio { border-left: 2px solid #A7F3D0; padding-left: 8px; }
+.transcript-source-text { border-left: 2px solid transparent; padding-left: 8px; }
 
 /* Export tab */
 .export-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
