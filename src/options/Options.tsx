@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { getSettings, setSettings } from '@/shared/storage';
 import {
   DEFAULT_DRAFT_EMAIL_LABELS,
+  DEFAULT_MASKING,
   DEFAULT_SYSTEM_PROMPT,
   DEFAULT_TRANSCRIBE_PROMPT_VI,
   DEFAULT_TRANSCRIPTION_CONFIG,
@@ -11,12 +12,13 @@ import {
 import type {
   CaptionMode,
   DraftEmailLabels,
+  MaskingPreferences,
   RetentionDays,
   TranscriptionConfig,
   UserSettings,
 } from '@/shared/types';
 
-type SectionId = 'ai' | 'caption' | 'summary' | 'calendar' | 'storage';
+type SectionId = 'ai' | 'caption' | 'summary' | 'masking' | 'calendar' | 'storage';
 
 const PROVIDER_ICONS: Record<string, string> = {
   OpenAI: '🟢',
@@ -77,6 +79,9 @@ export function Options() {
           <NavItem id="summary" current={section} onSelect={setSection} icon="📝">
             Summary
           </NavItem>
+          <NavItem id="masking" current={section} onSelect={setSection} icon="🛡️">
+            Masking PII
+          </NavItem>
         </NavGroup>
 
         <NavGroup label="Tích hợp">
@@ -102,6 +107,7 @@ export function Options() {
         )}
         {section === 'caption' && <CaptionSection s={s} save={save} />}
         {section === 'summary' && <SummarySection s={s} save={save} />}
+        {section === 'masking' && <MaskingSection s={s} save={save} />}
         {section === 'calendar' && <CalendarSection />}
         {section === 'storage' && <StorageSection s={s} save={save} />}
         <div class="section-spacer" />
@@ -503,6 +509,135 @@ export function SummarySection({
       <div class="card-row">
         <SystemPromptCard s={s} save={save} />
       </div>
+    </>
+  );
+}
+
+export function MaskingSection({
+  s,
+  save,
+}: {
+  s: UserSettings;
+  save: (p: Partial<UserSettings>) => Promise<void>;
+}) {
+  const m: MaskingPreferences = { ...DEFAULT_MASKING, ...(s.masking ?? {}) };
+  const patch = (p: Partial<MaskingPreferences>) => save({ masking: { ...m, ...p } });
+
+  const [dict, setDict] = useState(m.dictionary);
+  useEffect(() => setDict(m.dictionary), [m.dictionary]);
+  const dictDirty = dict !== m.dictionary;
+
+  const toggles: [keyof MaskingPreferences, string, string][] = [
+    ['maskSpeakers', 'Tên người nói & người tham gia', 'Lấy từ transcript — nguồn tên đáng tin cậy nhất'],
+    ['useDictionary', 'Từ điển bên dưới', 'Đơn vị / dự án / khách hàng / thuật ngữ nhạy cảm bạn tự nhập'],
+    ['maskEmails', 'Email', 'name@example.com'],
+    ['maskPhones', 'Số điện thoại', '0901 234 567, +84…'],
+    ['maskIds', 'Mã số / CCCD', 'Dãy số dài, mã nhân viên'],
+    [
+      'heuristicNames',
+      'Tự đoán danh từ riêng tiếng Việt (thử nghiệm)',
+      'Bắt thêm tên/đơn vị chưa có trong danh sách. Có thể ẩn nhầm hoặc bỏ sót.',
+    ],
+  ];
+
+  return (
+    <>
+      <div class="page-header">
+        <div class="page-title">🛡️ Masking PII</div>
+        <div class="page-subtitle">
+          Ẩn danh tên người, đơn vị, dự án và thông tin liên hệ <b>ngay trên máy trước khi gửi lên
+          AI</b>. Bản tóm tắt cuối vẫn hiển thị thông tin thật — AI bên ngoài không bao giờ thấy dữ
+          liệu gốc.
+        </div>
+      </div>
+
+      <div class="card-row">
+        <div class="card">
+          <div class="card-body">
+            <div
+              class={`checkbox-item ${m.enabled ? 'checked' : ''}`}
+              onClick={() => patch({ enabled: !m.enabled })}
+            >
+              <div class="checkbox-box">{m.enabled ? '✓' : ''}</div>
+              <span class="checkbox-label">
+                <b>Bật Masking khi tóm tắt</b> — ẩn danh trước khi gửi, khôi phục sau khi nhận kết
+                quả
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {m.enabled && (
+        <>
+          <div class="card-row">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">🔍 Loại thông tin cần ẩn</div>
+              </div>
+              <div class="card-body">
+                <div class="checkbox-grid">
+                  {toggles.map(([key, label, hint]) => {
+                    const checked = Boolean(m[key]);
+                    return (
+                      <div
+                        class={`checkbox-item ${checked ? 'checked' : ''}`}
+                        onClick={() => patch({ [key]: !checked } as Partial<MaskingPreferences>)}
+                        title={hint}
+                      >
+                        <div class="checkbox-box">{checked ? '✓' : ''}</div>
+                        <span class="checkbox-label">{label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">📒 Từ điển nhạy cảm</div>
+              </div>
+              <div class="card-body">
+                <label class="form-label">
+                  Mỗi dòng một mục: tên đơn vị, dự án, khách hàng, sản phẩm, thuật ngữ nội bộ… Khớp
+                  không phân biệt hoa thường.
+                </label>
+                <textarea
+                  class="form-textarea"
+                  rows={8}
+                  placeholder={'FPT Software\nDự án Alpha\nKhách hàng ACME\nMã nguồn Helios'}
+                  value={dict}
+                  disabled={!m.useDictionary}
+                  onInput={(e) => setDict((e.target as HTMLTextAreaElement).value)}
+                />
+                <div class="form-actions" style={{ marginTop: 8 }}>
+                  <button class="btn-primary" disabled={!dictDirty} onClick={() => patch({ dictionary: dict })}>
+                    Lưu từ điển
+                  </button>
+                  {dictDirty && <span class="muted">Chưa lưu</span>}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card">
+              <div class="card-body">
+                <p class="muted" style={{ margin: 0 }}>
+                  ℹ️ Khi bật, transcript gửi lên AI sẽ thay tên/đơn vị bằng placeholder dạng{' '}
+                  <code>[[PER1]]</code>, <code>[[TRM1]]</code>… AI được yêu cầu giữ nguyên các
+                  placeholder này; sau khi nhận kết quả, extension tự khôi phục lại giá trị thật.
+                  Một số mô hình yếu có thể làm sai lệch placeholder — nếu thấy <code>[[…]]</code>
+                  còn sót trong bản tóm tắt, hãy thử mô hình mạnh hơn.
+                </p>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }

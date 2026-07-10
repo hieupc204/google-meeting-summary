@@ -23,16 +23,17 @@ import {
   AIProviderSection,
   CaptionSection,
   SummarySection,
+  MaskingSection,
   CalendarSection,
   StorageSection,
 } from '@/options/Options';
 import '@/options/options.css';
 
-type Section = 'history' | 'ai' | 'caption' | 'summary' | 'calendar' | 'storage';
+type Section = 'history' | 'ai' | 'caption' | 'summary' | 'masking' | 'calendar' | 'storage';
 
 function readInitialSection(): Section {
   const h = location.hash.replace('#', '');
-  if (['history', 'ai', 'caption', 'summary', 'calendar', 'storage'].includes(h)) {
+  if (['history', 'ai', 'caption', 'summary', 'masking', 'calendar', 'storage'].includes(h)) {
     return h as Section;
   }
   return 'history';
@@ -467,6 +468,12 @@ export function History() {
           >
             <span class="nav-icon">📝</span> Summary
           </div>
+          <div
+            class={`nav-item ${section === 'masking' ? 'active' : ''}`}
+            onClick={() => navigate('masking')}
+          >
+            <span class="nav-icon">🛡️</span> Masking PII
+          </div>
         </div>
         <div class="nav-section">
           <div class="nav-label">Tích hợp</div>
@@ -499,6 +506,7 @@ export function History() {
             )}
             {section === 'caption' && <CaptionSection s={settings} save={saveSettingsPatch} />}
             {section === 'summary' && <SummarySection s={settings} save={saveSettingsPatch} />}
+            {section === 'masking' && <MaskingSection s={settings} save={saveSettingsPatch} />}
             {section === 'calendar' && <CalendarSection />}
             {section === 'storage' && <StorageSection s={settings} save={saveSettingsPatch} />}
           </>

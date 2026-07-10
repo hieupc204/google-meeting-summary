@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS } from './constants';
+import { DEFAULT_MASKING, DEFAULT_SETTINGS } from './constants';
 import type { UserSettings } from './types';
 
 const SETTINGS_KEY = 'settings';
@@ -54,6 +54,7 @@ export async function getSettings(): Promise<UserSettings> {
     ...stored,
     ai: { ...DEFAULT_SETTINGS.ai, ...(stored?.ai ?? {}) },
     summary: { ...DEFAULT_SETTINGS.summary, ...(stored?.summary ?? {}) },
+    masking: { ...DEFAULT_MASKING, ...(stored?.masking ?? {}) },
   };
 }
 
@@ -64,6 +65,7 @@ export async function setSettings(patch: Partial<UserSettings>): Promise<UserSet
     ...patch,
     ai: { ...current.ai, ...(patch.ai ?? {}) },
     summary: { ...current.summary, ...(patch.summary ?? {}) },
+    masking: { ...DEFAULT_MASKING, ...current.masking, ...(patch.masking ?? {}) },
   };
   await chrome.storage.local.set({ [SETTINGS_KEY]: next });
   return next;

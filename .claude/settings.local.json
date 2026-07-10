@@ -20,7 +20,11 @@
       "Bash(npx tsc *)",
       "Bash(curl -sS -o /tmp/resp.txt -w \"HTTP %{http_code}\\\\n\" https://api-9router.hieupc.cloud/v1/models -m 15)",
       "Read(//tmp/**)",
-      "Bash(curl -sS -o /tmp/cors.txt -D /tmp/cors_h.txt -w \"HTTP %{http_code}\\\\n\" -X OPTIONS https://api-9router.hieupc.cloud/v1/chat/completions -H \"Origin: chrome-extension://test\" -H \"Access-Control-Request-Method: POST\" -H \"Access-Control-Request-Headers: authorization,content-type\" -m 15)"
+      "Bash(curl -sS -o /tmp/cors.txt -D /tmp/cors_h.txt -w \"HTTP %{http_code}\\\\n\" -X OPTIONS https://api-9router.hieupc.cloud/v1/chat/completions -H \"Origin: chrome-extension://test\" -H \"Access-Control-Request-Method: POST\" -H \"Access-Control-Request-Headers: authorization,content-type\" -m 15)",
+      "Bash(grep -o 'data-priority[^,;]*\\\\|phụ đề\\\\|Meeting language\\\\|a4cQT\\\\|aria-label[^,;{]*' dist/assets/index.ts-CQZkHQuk.js)",
+      "Bash(grep -o 'data-priority=\"999\"\\\\][^,{]*\\\\|data-side=\"3\"\\\\] {display:none[^}]*}\\\\|:has\\(.a4cQT\\)\\\\|display:none !important' dist/assets/index.ts-CwASaVj2.js)",
+      "Bash(git checkout *)",
+      "Bash(npx vitest *)"
     ]
   }
 }

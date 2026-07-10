@@ -1,4 +1,15 @@
-import type { DraftEmailLabels, UserSettings } from './types';
+import type { DraftEmailLabels, MaskingPreferences, UserSettings } from './types';
+
+export const DEFAULT_MASKING: MaskingPreferences = {
+  enabled: false,
+  maskSpeakers: true,
+  useDictionary: true,
+  dictionary: '',
+  maskEmails: true,
+  maskPhones: true,
+  maskIds: true,
+  heuristicNames: false,
+};
 
 export const DEFAULT_DRAFT_EMAIL_LABELS: DraftEmailLabels = {
   ketQuaChinh: 'Kết quả chính',
@@ -40,6 +51,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     includeKeyQuotes: false,
     includeDraftEmail: false,
   },
+  masking: DEFAULT_MASKING,
   language: 'auto',
   consentAccepted: false,
 };

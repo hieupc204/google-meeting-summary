@@ -1,4 +1,12 @@
 import { DEFAULT_DRAFT_EMAIL_LABELS, DEFAULT_SYSTEM_PROMPT } from './constants';
+import {
+  createMaskContext,
+  findResidualTokens,
+  maskInstruction,
+  maskText,
+  unmaskResult,
+  type MaskContext,
+} from './masking';
 import type {
   ActionItem,
   DraftEmail,
@@ -634,6 +642,7 @@ async function summarizeChunk(
   idx: number,
   total: number,
   settings: UserSettings,
+  ctx: MaskContext,
 ): Promise<string> {
   const sys = `Bạn đang tóm tắt phần ${idx}/${total} của một transcript cuộc họp dài.
 
@@ -648,7 +657,7 @@ YÊU CẦU:
 - Văn phong chuyên nghiệp, dễ đọc.
 - Giữ tên riêng và thuật ngữ kỹ thuật.
 - Loại bỏ small talk, lặp lại.
-- Output dạng markdown có heading + bullet, KHÔNG cần bọc JSON.`;
+- Output dạng markdown có heading + bullet, KHÔNG cần bọc JSON.${maskInstruction(ctx)}`;
 
   const messages = [
     { role: 'system' as const, content: sys },
@@ -821,9 +830,18 @@ export async function summarizeMeeting(
 ): Promise<SummaryResult> {
   if (!settings.ai.endpoint) throw new Error('Chưa cấu hình AI endpoint');
   if (!settings.ai.apiKey) throw new Error('Chưa cấu hình API key');
-  const text = transcriptToText(transcript);
-  if (!text.trim()) throw new Error('Transcript trống');
+  const rawText = transcriptToText(transcript);
+  if (!rawText.trim()) throw new Error('Transcript trống');
 
+  // PII masking: pseudonymize entities locally so the AI endpoint only ever
+  // sees placeholder tokens; we restore the real values in the result below.
+  const ctx = createMaskContext(transcript, settings.masking, meeting.participants ?? []);
+  const text = maskText(rawText, ctx);
+  if (ctx.enabled) {
+    console.log(`[Meet Assistant] Masking bật: ${ctx.byToken.size} thực thể được ẩn danh`);
+  }
+
+  let result: SummaryResult;
   // Long transcripts → map/reduce: summarize each chunk first, then run the
   // rich prompt on the concatenated partials (now small enough to fit).
   if (text.length > SINGLE_SHOT_MAX_CHARS) {
@@ -834,7 +852,7 @@ export async function summarizeMeeting(
     const partials: string[] = [];
     for (let i = 0; i < chunks.length; i++) {
       console.log(`[Meet Assistant] Tóm tắt chunk ${i + 1}/${chunks.length}…`);
-      const p = await summarizeChunk(chunks[i], i + 1, chunks.length, settings);
+      const p = await summarizeChunk(chunks[i], i + 1, chunks.length, settings, ctx);
       partials.push(p);
     }
     console.log('[Meet Assistant] Hợp nhất các phần thành output cuối…');
@@ -843,15 +861,32 @@ export async function summarizeMeeting(
       partials
         .map((p, i) => `=== Phần ${i + 1}/${chunks.length} ===\n${p}`)
         .join('\n\n');
-    return await runFinalSummarize(meeting, merged, settings);
+    result = await runFinalSummarize(meeting, merged, settings, ctx);
+  } else {
+    result = await runFinalSummarize(meeting, text, settings, ctx);
   }
-  return await runFinalSummarize(meeting, text, settings);
+
+  // Restore real names/orgs/contacts in every field before returning.
+  const restored = unmaskResult(result, ctx);
+  if (ctx.enabled) {
+    const residual = findResidualTokens(restored.summary);
+    if (residual.length) {
+      console.warn(
+        '[Meet Assistant] ⚠️ Token chưa khôi phục được (model trả về sai định dạng):',
+        residual,
+        '\nBản đồ mask:',
+        Object.fromEntries([...ctx.byToken]),
+      );
+    }
+  }
+  return restored;
 }
 
 async function runFinalSummarize(
   meeting: MeetingRecord,
   text: string,
   settings: UserSettings,
+  ctx: MaskContext,
 ): Promise<SummaryResult> {
 
   // Choose prompt: user's custom takes precedence, else fall back to the
@@ -862,23 +897,36 @@ async function runFinalSummarize(
   const hasPlaceholder = TRANSCRIPT_PLACEHOLDER_RE.test(promptTemplate);
   TRANSCRIPT_PLACEHOLDER_RE.lastIndex = 0;
 
+  // The meeting title can itself carry PII (project/client names) — mask it so
+  // it isn't leaked via {{TITLE}} or the user message.
+  const maskedMeeting: MeetingRecord = ctx.enabled
+    ? { ...meeting, title: maskText(meeting.title, ctx) }
+    : meeting;
+  const instruction = maskInstruction(ctx);
+
   let messages: { role: 'system' | 'user'; content: string }[];
   if (hasPlaceholder) {
     messages = [
-      { role: 'system', content: fillPlaceholders(promptTemplate, meeting, text, settings) },
+      {
+        role: 'system',
+        content: fillPlaceholders(promptTemplate, maskedMeeting, text, settings) + instruction,
+      },
       { role: 'user', content: 'Generate the JSON response now.' },
     ];
   } else {
     // No placeholder: send template as system, transcript as user.
     const userMsg = [
-      `Meeting title: ${meeting.title}`,
+      `Meeting title: ${maskedMeeting.title}`,
       `Date: ${new Date(meeting.createdAt).toISOString()}`,
       '',
       'Transcript:',
       text,
     ].join('\n');
     messages = [
-      { role: 'system', content: fillPlaceholders(promptTemplate, meeting, '', settings) },
+      {
+        role: 'system',
+        content: fillPlaceholders(promptTemplate, maskedMeeting, '', settings) + instruction,
+      },
       { role: 'user', content: userMsg },
     ];
   }

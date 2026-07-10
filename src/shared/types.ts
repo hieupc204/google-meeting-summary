@@ -48,12 +48,32 @@ export interface SummaryPreferences {
   customSystemPrompt?: string;
 }
 
+// PII masking — pseudonymize sensitive entities locally BEFORE the transcript
+// leaves the device for the AI endpoint, then restore the real values in the
+// returned summary. The external model never sees real names/orgs/contacts.
+export interface MaskingPreferences {
+  enabled: boolean;
+  // Replace speaker labels + participant names (the most reliable PII source).
+  maskSpeakers: boolean;
+  // User-maintained list of org/project/client names + sensitive terms.
+  useDictionary: boolean;
+  dictionary: string; // one entry per line (commas also accepted)
+  // Regex-based contact/identifier scrubbing.
+  maskEmails: boolean;
+  maskPhones: boolean;
+  maskIds: boolean; // CCCD / mã NV / long digit sequences
+  // Experimental heuristic detector for Vietnamese proper nouns (names/orgs)
+  // not covered by the lists above. May over- or under-mask.
+  heuristicNames: boolean;
+}
+
 export interface UserSettings {
   ai: AIConfig;
   transcription?: TranscriptionConfig;
   captionMode: CaptionMode;
   retentionDays: RetentionDays;
   summary: SummaryPreferences;
+  masking?: MaskingPreferences;
   language: 'vi' | 'en' | 'auto';
   consentAccepted: boolean;
 }
