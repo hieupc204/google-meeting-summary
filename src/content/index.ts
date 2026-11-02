@@ -9,7 +9,8 @@ import {
 import type { PanelMode } from '@/shared/storage';
 import type { Message, TranscriptLine } from '@/shared/types';
 
-const MEET_ID_RE = /^\/([a-z]{3}-[a-z]{4}-[a-z]{3})/;
+// Meet serves calls at both /abc-defg-hij and the newer /meet/abc-defg-hij.
+const MEET_ID_RE = /^\/(?:meet\/)?([a-z]{3}-[a-z]{4}-[a-z]{3})/;
 
 function getMeetingId(): string | null {
   const m = location.pathname.match(MEET_ID_RE);

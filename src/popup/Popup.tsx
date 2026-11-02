@@ -18,7 +18,8 @@ const STATE_TEXT: Record<CaptureStatus['state'], string> = {
   'no-cc': 'Phụ đề chưa bật · Thời lượng',
 };
 
-const MEET_URL_RE = /^https:\/\/meet\.google\.com\/([a-z]{3}-[a-z]{4}-[a-z]{3})/;
+// Meet serves calls at both /abc-defg-hij and the newer /meet/abc-defg-hij.
+const MEET_URL_RE = /^https:\/\/meet\.google\.com\/(?:meet\/)?([a-z]{3}-[a-z]{4}-[a-z]{3})/;
 
 function formatHMS(seconds: number): string {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0');
