@@ -9,6 +9,7 @@ import {
 } from '@/shared/db';
 import { transcribeFile, type TranscribeProgress } from '@/shared/transcribe';
 import { mergeTranscriptsWithAI } from '@/shared/ai';
+import { buildAIHeaders } from '@/shared/aiHeaders';
 import { getSettings, setSettings as saveSettings } from '@/shared/storage';
 import type {
   MeetingRecord,
@@ -387,8 +388,8 @@ export function History() {
     if (!settings) return;
     setTestStatus('Đang kiểm tra…');
     try {
-      const res = await fetch(`${settings.ai.endpoint}/models`, {
-        headers: { Authorization: `Bearer ${settings.ai.apiKey}` },
+      const res = await fetch(`${settings.ai.endpoint.replace(/\/+$/, '')}/models`, {
+        headers: buildAIHeaders(settings.ai.endpoint, settings.ai.apiKey),
       });
       setTestStatus(res.ok ? '✅ Kết nối thành công' : `❌ ${res.status} ${res.statusText}`);
     } catch (e) {

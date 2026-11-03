@@ -1,4 +1,5 @@
 import { DEFAULT_DRAFT_EMAIL_LABELS, DEFAULT_SYSTEM_PROMPT } from './constants';
+import { buildAIHeaders } from './aiHeaders';
 import {
   createMaskContext,
   findResidualTokens,
@@ -681,7 +682,7 @@ async function callChatAPI(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${settings.ai.apiKey}`,
+        ...buildAIHeaders(settings.ai.endpoint, settings.ai.apiKey),
       },
       body: JSON.stringify({
         model: settings.ai.model,

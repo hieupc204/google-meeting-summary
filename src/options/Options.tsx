@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { getSettings, setSettings } from '@/shared/storage';
+import { buildAIHeaders } from '@/shared/aiHeaders';
 import {
   DEFAULT_DRAFT_EMAIL_LABELS,
   DEFAULT_MASKING,
@@ -49,8 +50,8 @@ export function Options() {
   const testApi = async () => {
     setTestStatus('Đang kiểm tra…');
     try {
-      const res = await fetch(`${s.ai.endpoint}/models`, {
-        headers: { Authorization: `Bearer ${s.ai.apiKey}` },
+      const res = await fetch(`${s.ai.endpoint.replace(/\/+$/, '')}/models`, {
+        headers: buildAIHeaders(s.ai.endpoint, s.ai.apiKey),
       });
       setTestStatus(res.ok ? '✅ Kết nối thành công' : `❌ ${res.status} ${res.statusText}`);
     } catch (e) {
@@ -179,7 +180,7 @@ export function AISection({
     setTestStatus('Đang kiểm tra…');
     try {
       const res = await fetch(`${draft.endpoint.replace(/\/+$/, '')}/models`, {
-        headers: { Authorization: `Bearer ${draft.apiKey}` },
+        headers: buildAIHeaders(draft.endpoint, draft.apiKey),
       });
       setTestStatus(res.ok ? '✅ Kết nối thành công' : `❌ ${res.status} ${res.statusText}`);
     } catch (e) {
